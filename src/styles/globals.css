@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark mode driven by a `.dark` class on <html> (managed by next-themes). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design tokens — Apple/Linear-inspired.
+  Neutral, low-chroma greys with a single confident indigo accent.
+  Colors are OKLCH for perceptually even light/dark ramps.
+*/
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.99 0.002 250);
+  --foreground: oklch(0.21 0.01 265);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.01 265);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.01 265);
+
+  --primary: oklch(0.55 0.2 269);
+  --primary-foreground: oklch(0.99 0.002 250);
+
+  --secondary: oklch(0.97 0.003 265);
+  --secondary-foreground: oklch(0.28 0.012 265);
+
+  --muted: oklch(0.97 0.003 265);
+  --muted-foreground: oklch(0.55 0.015 265);
+
+  --accent: oklch(0.96 0.005 265);
+  --accent-foreground: oklch(0.28 0.012 265);
+
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.99 0.002 250);
+
+  --success: oklch(0.62 0.16 155);
+  --warning: oklch(0.72 0.16 75);
+
+  --border: oklch(0.92 0.004 265);
+  --input: oklch(0.92 0.004 265);
+  --ring: oklch(0.55 0.2 269);
+}
+
+.dark {
+  --background: oklch(0.17 0.007 265);
+  --foreground: oklch(0.96 0.003 265);
+
+  --card: oklch(0.2 0.008 265);
+  --card-foreground: oklch(0.96 0.003 265);
+
+  --popover: oklch(0.2 0.008 265);
+  --popover-foreground: oklch(0.96 0.003 265);
+
+  --primary: oklch(0.68 0.17 269);
+  --primary-foreground: oklch(0.17 0.007 265);
+
+  --secondary: oklch(0.26 0.01 265);
+  --secondary-foreground: oklch(0.96 0.003 265);
+
+  --muted: oklch(0.26 0.01 265);
+  --muted-foreground: oklch(0.68 0.012 265);
+
+  --accent: oklch(0.28 0.012 265);
+  --accent-foreground: oklch(0.96 0.003 265);
+
+  --destructive: oklch(0.62 0.2 25);
+  --destructive-foreground: oklch(0.96 0.003 265);
+
+  --success: oklch(0.68 0.15 155);
+  --warning: oklch(0.75 0.15 75);
+
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.68 0.17 269);
+}
+
+/* Map tokens into Tailwind's theme so `bg-background`, `text-muted-foreground`, etc. work. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+
+  --shadow-elevated: 0 1px 2px oklch(0 0 0 / 6%), 0 8px 24px oklch(0 0 0 / 8%);
+
+  --animate-fade-in: fade-in 0.4s ease-out both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.011em;
+  }
+
+  /* Refined focus ring, applied consistently across interactive elements. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--color-primary) 25%, transparent);
+  }
+
+  /* Tailwind's preflight resets button cursor to `default`; restore the
+     expected pointer for every clickable control, including future ones. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
