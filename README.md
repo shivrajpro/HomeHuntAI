@@ -16,7 +16,7 @@ priorities, then helps you decide with confidence instead of spreadsheets.
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Edge%20Functions-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![Gemini](https://img.shields.io/badge/Google-Gemini%20Flash-4285F4?logo=googlegemini&logoColor=white)](https://ai.google.dev)
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
-[![Playwright](https://img.shields.io/badge/E2E-390%20tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![Playwright](https://img.shields.io/badge/E2E-65%20tests%20%C3%97%206%20browsers-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 
 </div>
 
@@ -227,7 +227,7 @@ HomeHuntAI/
 ├── scripts/
 │   ├── generate-listings.mjs       # Deterministic seed generator
 │   └── migrate-to-supabase.mjs     # One-off seed → Postgres migration
-├── tests/                          # 11 Playwright specs (390 runs)
+├── tests/                          # 11 Playwright specs (65 tests)
 ├── vercel.json                     # SPA rewrite
 └── vite.config.ts
 ```
@@ -383,15 +383,17 @@ so there's no separate install step.
 ### Tests
 
 ```bash
-npx playwright test              # 390 runs — 65 tests × 6 browser/device projects
-npx playwright test --ui         # Interactive mode
+npm test                         # Fast everyday run — 65 tests, Chromium only
+npm run test:all                 # Full pre-release sweep — 390 runs across 6 browser/device projects
+npm run test:ui                  # Interactive mode
 npx playwright show-report       # Last HTML report
 ```
 
 Coverage spans every route, filters and search, Nestor (including Gemini-outage and
 rate-limit fallback), compare, shortlist, theming, 404s, per-page SEO titles, and an automated
-**axe-core accessibility scan**. Projects: Chromium, Firefox, WebKit, iPad Mini, Pixel 5,
-iPhone 12. The config auto-starts the dev server.
+**axe-core accessibility scan**. The default run uses Chromium only for speed; `test:all`
+(or `ALL_BROWSERS=1`, set automatically on CI) expands to the full matrix — Chromium, Firefox,
+WebKit, iPad Mini, Pixel 5, iPhone 12. The config auto-starts the dev server.
 
 ---
 
@@ -466,7 +468,7 @@ Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
    ```bash
    npm run lint          # Oxlint
    npm run build         # tsc -b && vite build
-   npx playwright test   # E2E + accessibility
+   npm run test:all      # E2E + accessibility, full browser matrix
    ```
 
 6. Update [`project-stage.md`](project-stage.md) and this README if your change affects documented behavior.
