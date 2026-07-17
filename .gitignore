@@ -20,6 +20,9 @@ dist-ssr
 supabase/.temp
 supabase/.branches
 
+# Internal planning notes — not part of the published project
+project-stage.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

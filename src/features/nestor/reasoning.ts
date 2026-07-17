@@ -18,18 +18,29 @@ import { formatINR, joinClauses } from '@/lib/utils'
  * out-of-scope locally (`isLikelyOutOfScope`) before anything else runs —
  * out-of-scope briefs never reach the network. In-scope intent parsing
  * (turning a free-text brief into a structured `NestorIntent`) is delegated
- * to Gemini 2.5 Flash via the `nestor-intent` Supabase Edge Function — see
+ * to Gemini via the `nestor-intent` Supabase Edge Function — see
  * `deriveIntentAsync` below — with the original regex-based parser
  * (`parseIntent`/`refineIntent`) kept as an offline fallback if that call
- * fails. Everything downstream of intent (candidate selection, fit scoring,
- * strengths/trade-off/confidence text, near-misses) stays fully
- * deterministic, so the same intent always yields the same, defensible
- * answer.
+ * fails.
+ *
+ * Downstream of intent, Gemini now does the deciding too (see `answerFor`):
+ * hard constraints and a weighted locality-score fit deterministically
+ * shortlist the strongest candidates here, then the shortlist is hydrated
+ * into full listings and sent to the `nestor-reason` Edge Function, where
+ * Gemini picks, ranks and explains end-to-end — the summary, each pick's
+ * 0–100 fit, strengths, trade-off and confidence text, all grounded in the
+ * real listing data it was shown. Every id Gemini returns is validated
+ * against the candidates we sent, so it can never invent a home; on any
+ * failure (network, rate limit, unusable output) the original fully
+ * deterministic ranking/explanation path below runs instead, so Nestor
+ * always produces a defensible answer. Near-misses ("why wasn't this
+ * recommended?") stay deterministic — they're constraint arithmetic with
+ * exact rupee amounts, not judgment.
  *
  * Listings come from Supabase in two stages (see `answerFor`): ranking scans
  * a slim projection of the catalogue (`PropertyRankingFields`), then only the
- * few homes actually shown are hydrated into full `Property` objects. Ranking
- * itself still happens here rather than in SQL — fit is a weighted blend of
+ * shortlist sent to Gemini is hydrated into full `Property` objects. The
+ * shortlisting happens here rather than in SQL — fit is a weighted blend of
  * seven locality scores against a per-user priority order, and the near-miss
  * pass needs the homes the filters *rejected*.
  */
@@ -268,6 +279,13 @@ export interface NestorAnswer {
    * should skip picks/priority-editor rendering, same as `offTopic`.
    */
   noNewSignal?: boolean
+  /**
+   * Which engine produced this turn's picks and explanation text: 'gemini'
+   * when the `nestor-reason` Edge Function answered, 'local' when the
+   * deterministic fallback ranked instead. Unset on `offTopic`/`noNewSignal`
+   * turns, which carry no picks at all.
+   */
+  reasonedBy?: 'gemini' | 'local'
 }
 
 // --- Intent parsing --------------------------------------------------------
@@ -1016,6 +1034,149 @@ function poolBounds(intent: NestorIntent): RankingPoolBounds {
   }
 }
 
+// --- Gemini reasoning over the candidate shortlist --------------------------
+// The deterministic pipeline above narrows the catalogue to a shortlist; the
+// `nestor-reason` Edge Function then has Gemini do the actual deciding —
+// which homes, in what order, with what fit and what explanation — grounded
+// in the full listing data (highlights, amenities, nearby landmarks). The
+// deterministic text builders below double as the offline fallback.
+
+/** How many deterministically shortlisted homes Gemini gets to choose from. */
+const REASONING_CANDIDATE_COUNT = 12
+
+/**
+ * The slice of a listing Gemini reasons over — rich enough to ground
+ * specific, factual explanations (landmarks with distances, amenities,
+ * price-per-sqft value) while staying compact enough that a full shortlist
+ * fits comfortably in one prompt.
+ */
+interface ReasoningCandidate {
+  id: string
+  title: string
+  locality: string
+  city: string
+  region: Region
+  propertyType: PropertyType
+  listingType: ListingType
+  bhk: number
+  bathrooms: number
+  priceINR: number
+  pricePerSqftINR: number
+  superBuiltupAreaSqft: number
+  furnishing: string
+  ageOfPropertyYears: number
+  reraApproved: boolean
+  localityScores: PropertyInsights
+  highlights: string[]
+  amenities: string[]
+  nearby: {
+    type: string
+    name: string
+    distanceKm: number
+    travelTimeMinutes?: number
+  }[]
+}
+
+function toReasoningCandidate(p: Property): ReasoningCandidate {
+  return {
+    id: p.id,
+    title: p.title,
+    locality: `${p.subLocality}, ${p.locality}`,
+    city: p.city,
+    region: p.region,
+    propertyType: p.propertyType,
+    listingType: p.listingType,
+    bhk: p.bhk,
+    bathrooms: p.bathrooms,
+    priceINR: p.price,
+    pricePerSqftINR: pricePerSqft(p),
+    superBuiltupAreaSqft: p.superBuiltupAreaSqft,
+    furnishing: p.furnishing,
+    ageOfPropertyYears: p.ageOfPropertyYears,
+    reraApproved: p.reraApproved,
+    localityScores: p.aiInsights,
+    highlights: p.highlights.slice(0, 4),
+    amenities: p.amenities.slice(0, 6),
+    nearby: p.nearby.slice(0, 5).map((n) => ({
+      type: n.type,
+      name: n.name,
+      distanceKm: n.distanceKm,
+      ...(n.travelTimeMinutes != null
+        ? { travelTimeMinutes: n.travelTimeMinutes }
+        : {}),
+    })),
+  }
+}
+
+/** What `nestor-reason` returns once its own id/shape validation has passed. */
+interface RemoteReasoning {
+  summary: string
+  picks: {
+    id: string
+    fit: number
+    strengths: string[]
+    tradeoff: string
+    confidenceBasis: string
+  }[]
+}
+
+/**
+ * Ask the `nestor-reason` Edge Function (Gemini) to pick, rank and explain
+ * from the hydrated candidate shortlist. Returns `null` on any failure —
+ * network error, the function's rate limit, or output that failed its
+ * validation — so `answerFor` can fall back to the deterministic ranking.
+ */
+async function reasonRemote(
+  intent: NestorIntent,
+  candidates: Property[],
+  context: {
+    refined: boolean
+    relaxed: string[]
+    totalMatched: number
+    topN: number
+  },
+): Promise<RemoteReasoning | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke<RemoteReasoning>(
+      'nestor-reason',
+      {
+        body: {
+          brief: intent.rawText,
+          intent: {
+            listingType: intent.listingType,
+            region: intent.region,
+            maxPrice: intent.maxPrice,
+            minBhk: intent.minBhk,
+            propertyType: intent.propertyType,
+            excludedPropertyTypes: intent.excludedPropertyTypes,
+            priorities: intent.priorities,
+            lifestyleTags: intent.lifestyleTags,
+          },
+          candidates: candidates.map(toReasoningCandidate),
+          context: {
+            refined: context.refined,
+            relaxed: context.relaxed,
+            usedDefaultPriorities: intent.usedDefaultPriorities,
+            totalMatched: context.totalMatched,
+            topN: context.topN,
+          },
+        },
+      },
+    )
+    if (
+      error ||
+      !data?.summary ||
+      !Array.isArray(data.picks) ||
+      data.picks.length === 0
+    ) {
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
 /** Rank + explain the catalogue for an already-resolved intent. */
 async function answerFor(
   rawIntent: NestorIntent,
@@ -1041,45 +1202,89 @@ async function answerFor(
       // Tie-break on value: cheaper per-sqft wins.
       return pricePerSqft(a.property) - pricePerSqft(b.property)
     })
-    .slice(0, topN)
 
-  const pickIds = new Set(ranked.map((pick) => pick.property.id))
+  // Hydrate the shortlist up front: Gemini needs the full listing detail to
+  // reason with, and whichever homes it picks are then ready to render with
+  // no second round trip.
+  const shortlist = ranked.slice(0, Math.max(topN, REASONING_CANDIDATE_COUNT))
+  const hydratedCandidates = await hydrate(shortlist.map((r) => r.property.id))
+  const candidates = shortlist
+    .map((r) => hydratedCandidates.get(r.property.id))
+    .filter((p): p is Property => p != null)
+
+  const remote =
+    candidates.length > 0
+      ? await reasonRemote(intent, candidates, {
+          refined,
+          relaxed,
+          totalMatched: list.length,
+          topN,
+        })
+      : null
+
+  let picks: RankedPick[] = []
+  let summary = ''
+  let reasonedBy: 'gemini' | 'local' = 'local'
+  if (remote) {
+    picks = remote.picks
+      .filter((p) => hydratedCandidates.has(p.id))
+      .slice(0, topN)
+      .map((p) => ({
+        property: hydratedCandidates.get(p.id)!,
+        fit: Math.min(100, Math.max(0, Math.round(p.fit))),
+        strengths: p.strengths.slice(0, 4),
+        tradeoff: p.tradeoff,
+        confidenceBasis: p.confidenceBasis,
+      }))
+    // The UI and tests key off this exact lead on refined turns — guarantee
+    // it rather than trusting the prompt to comply.
+    summary =
+      refined && !remote.summary.startsWith('Updated your search')
+        ? `Updated your search. ${remote.summary}`
+        : remote.summary
+    reasonedBy = 'gemini'
+  }
+  if (picks.length === 0) {
+    // Deterministic fallback: the weighted-fit top N with the local text
+    // builders, so a Gemini outage degrades to the pre-Gemini behaviour.
+    reasonedBy = 'local'
+    picks = ranked.slice(0, topN).flatMap(({ property, fit }) => {
+      const full = hydratedCandidates.get(property.id)
+      if (!full) return []
+      return [
+        {
+          property: full,
+          fit,
+          strengths: buildStrengths(full, intent.priorities),
+          tradeoff: buildTradeoff(full, intent),
+          confidenceBasis: buildConfidenceBasis(full, intent, relaxed),
+        },
+      ]
+    })
+    summary = buildSummary(intent, relaxed, refined)
+  }
+
+  // Near-misses come after the final picks are known: Gemini may choose a
+  // different top 3 than the deterministic ranking would, and a home can't be
+  // both a pick and a "why wasn't this recommended" entry.
+  const pickIds = new Set(picks.map((pick) => pick.property.id))
   const nearMisses = findNearMisses(intent, pool, pickIds)
-
-  // Only the homes we're about to show need their full detail — images, title,
-  // locality. One round trip covers both the picks and the near-misses.
-  const hydrated = await hydrate([
-    ...ranked.map((r) => r.property.id),
-    ...nearMisses.map((r) => r.property.id),
-  ])
-
-  const picks: RankedPick[] = ranked.flatMap(({ property, fit }) => {
-    const full = hydrated.get(property.id)
-    if (!full) return []
-    return [
-      {
-        property: full,
-        fit,
-        strengths: buildStrengths(full, intent.priorities),
-        tradeoff: buildTradeoff(full, intent),
-        confidenceBasis: buildConfidenceBasis(full, intent, relaxed),
-      },
-    ]
-  })
+  const hydratedMisses = await hydrate(nearMisses.map((r) => r.property.id))
 
   const rejected: RejectedPick[] = nearMisses.flatMap(({ property, fit, reason }) => {
-    const full = hydrated.get(property.id)
+    const full = hydratedMisses.get(property.id)
     return full ? [{ property: full, fit, reason }] : []
   })
 
   return {
     intent,
-    summary: buildSummary(intent, relaxed, refined),
+    summary,
     picks,
     rejected,
     totalMatched: list.length,
     refined,
     relaxedNote: relaxed.length ? relaxed.join(', ') : undefined,
+    reasonedBy,
   }
 }
 
@@ -1140,11 +1345,13 @@ function noNewSignalAnswer(prevIntent: NestorIntent, rawText: string): NestorAns
 }
 
 /**
- * Run the full pipeline: brief → intent → ranked, explained picks. Pass the
- * previous turn's intent to refine it (multi-turn memory) instead of starting
- * from scratch. Intent parsing goes through Gemini (`deriveIntentAsync`),
- * falling back to the local parser if that call fails. A first message with
- * no home-search signal at all short-circuits to a redirect instead of
+ * Run the full pipeline: brief → intent → shortlist → Gemini-reasoned,
+ * explained picks. Pass the previous turn's intent to refine it (multi-turn
+ * memory) instead of starting from scratch. Intent parsing goes through
+ * Gemini (`deriveIntentAsync`) and so does the ranking/explanation step
+ * (`answerFor` → `reasonRemote`), each falling back to its local
+ * deterministic counterpart independently if the call fails. A first message
+ * with no home-search signal at all short-circuits to a redirect instead of
  * ranking the full, unfiltered catalogue (see `offTopicAnswer`); a follow-up
  * with no recognisable signal short-circuits to a short acknowledgment
  * instead of re-running the previous search (see `noNewSignalAnswer`).
@@ -1162,10 +1369,10 @@ export async function runNestor(
 
 /**
  * Re-rank an existing intent after the user edits its priorities in the UI —
- * no re-parsing, just a fresh ranking against the updated weights. Async only
- * because the listings come from Supabase; the priority edit itself doesn't
- * change the intent's filters, so the ranking pool is the same query the
- * original turn already ran.
+ * no re-parsing, just a fresh reasoning pass (Gemini, with the deterministic
+ * fallback) against the updated priority order. The priority edit itself
+ * doesn't change the intent's filters, so the ranking pool is the same query
+ * the original turn already ran.
  */
 export function rerankIntent(
   intent: NestorIntent,

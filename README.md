@@ -105,20 +105,21 @@ across 2,000 listings.
 │  Explore / Detail / Compare / Shortlist                      │
 │        └── TanStack Query ──► api.ts ──────────┐             │
 │                                                │             │
-│  Nestor                                        │             │
+│  Nestor (reasoning.ts)                         │             │
 │    1. isLikelyOutOfScope()  ── local gate ─────┤ (no network)│
 │    2. deriveIntentAsync()  ────────────┐       │             │
-│    3. rank + explain (reasoning.ts)    │       │             │
-│         deterministic, local seed      │       │             │
+│    3. filter + shortlist top 12 ───────┼───────┤             │
+│    4. Gemini picks/ranks/explains ─────┤       │             │
+│         (deterministic fallback)       │       │             │
 └────────────────────────────────────────┼───────┼─────────────┘
                                          │       │
-                    ┌────────────────────▼──┐    │
-                    │ Supabase Edge Function│    │
-                    │   `nestor-intent`     │    │
-                    │  • rate limit (30/hr) │    │
-                    │  • Gemini Flash       │────┼──► Google Gemini API
-                    │  • JSON schema output │    │
-                    └───────────────────────┘    │
+                 ┌───────────────────────▼──┐    │
+                 │ Supabase Edge Functions  │    │
+                 │  `nestor-intent` (parse) │    │
+                 │  `nestor-reason` (decide)│────┼──► Google Gemini API
+                 │  • shared rate limit     │    │
+                 │  • JSON schema output    │    │
+                 └──────────────────────────┘    │
                                                  │
                     ┌────────────────────────────▼─┐
                     │ Supabase Postgres            │
@@ -127,22 +128,21 @@ across 2,000 listings.
                     └──────────────────────────────┘
 ```
 
-**The core design decision:** Gemini handles **natural-language understanding only**.
-Ranking, fit scoring, strengths, trade-offs, confidence text, near-misses and the Decision
-Report are **deterministic TypeScript** — the same intent always produces the same,
-defensible answer, and nothing about a recommendation is hallucinated.
+**The core design decision:** Gemini reasons, deterministic code constrains. Hard filters,
+candidate shortlisting and near-miss selection are **deterministic TypeScript** — Gemini
+never sees the whole catalogue, only the ~12 strongest real candidates with their full
+data (locality scores, highlights, amenities, nearby landmarks). Within that slate, Gemini
+does the deciding end-to-end: which homes to pick, in what order, each pick's 0–100 fit,
+its strengths, its honest trade-off, its confidence rationale and the reply summary — all
+grounded in listing data it was actually shown. Every id it returns is validated against
+the submitted candidate set, so a recommendation can never be hallucinated into existence.
 
-Three layers of graceful degradation:
+Four layers of graceful degradation:
 
 1. **Local scope gate** — off-topic first messages never reach the network.
-2. **Local regex parser** — if the edge function or Gemini fails (outage, rate limit, network error), `deriveIntentAsync` silently falls back to `parseIntent`/`refineIntent`. A Gemini outage degrades quality, never breaks Nestor.
-3. **Rate limiting** — 30 Gemini calls/hour per caller IP, logged in `nestor_requests`; the check itself fails open.
-
-> [!IMPORTANT]
-> Explore, detail, compare and shortlist read **live Supabase data**. Nestor's ranking
-> engine (`reasoning.ts`) still ranks against the **bundled local seed** (`listings.json`) —
-> the same data, but a static snapshot and a second source of truth. Unifying this is on the
-> roadmap.
+2. **Local regex parser** — if `nestor-intent` or Gemini fails (outage, rate limit, network error), `deriveIntentAsync` silently falls back to `parseIntent`/`refineIntent`.
+3. **Deterministic ranking fallback** — if `nestor-reason` fails or returns unusable picks, the original weighted-fit ranking with template-based explanations runs instead. A Gemini outage degrades quality, never breaks Nestor.
+4. **Rate limiting** — 60 Gemini calls/hour per caller IP across both functions (a turn costs two: parse + reason), logged in `nestor_requests`; the check itself fails open.
 
 ---
 
@@ -165,16 +165,38 @@ Notable inferences the prompt encodes:
 - **Life-stage → priorities** — nine mapped patterns (retiring, newly married, single professional, growing family, investor, expecting, multigenerational, remote/WFH, pet owner).
 - **Follow-up merge semantics** — explicit values override; relative nudges scale the budget; negations add exclusions; newly named priorities move to the front; everything unmentioned carries over.
 
-### Deterministic reasoning — `src/features/nestor/reasoning.ts`
+### Gemini reasoning — `supabase/functions/nestor-reason`
 
-Ranking is a **weighted fit score** over seven locality dimensions carried on every listing
-(`walkability`, `familyScore`, `investmentScore`, `commuteScore`, `safetyScore`,
-`nightlifeScore`, `greenScore`). The first-named priority gets the highest weight
-(`weight = n - i`); ties break on cheaper price-per-sqft.
+The deciding layer. The frontend sends the brief, the structured intent and the ~12
+strongest candidates — full real data per home: price, price-per-sqft, BHK, area, age,
+furnishing, RERA status, the seven locality scores, top highlights/amenities and nearby
+landmarks with distances. Gemini (same model, constrained `responseSchema`,
+`temperature: 0.35`) returns the reply summary plus up to 3 picks, each with its 0–100
+fit judgment, 2–4 grounded strengths, one honest trade-off and a confidence rationale.
+
+Anti-hallucination contract, enforced server-side in `sanitize()`:
+
+- Every returned pick id must be one of the submitted candidate ids — unknown or duplicate ids are dropped, and zero usable picks becomes a 502 so the client falls back.
+- Fit is clamped to 0–100; strengths are capped at 4; empty text fields invalidate the pick.
+- The prompt forbids inventing facts and quoting raw locality scores; prices must be written in Indian units (₹1.2 Cr, ₹85 L, ₹45k/month).
+
+### Deterministic shortlisting & fallback — `src/features/nestor/reasoning.ts`
+
+Candidate selection stays deterministic: hard filters (city, budget, BHK, type,
+exclusions) narrow the catalogue, then a **weighted fit score** over seven locality
+dimensions (`walkability`, `familyScore`, `investmentScore`, `commuteScore`,
+`safetyScore`, `nightlifeScore`, `greenScore`) shortlists what Gemini sees. The
+first-named priority gets the highest weight (`weight = n - i`); ties break on cheaper
+price-per-sqft.
 
 If too few homes match, **progressive filter relaxation** loosens the cheapest constraint
 first — property type → BHK → budget (+25%) → city — until at least 3 homes surface, and the
 reply says which filters were widened.
+
+Near-misses ("why wasn't this recommended?") are also deterministic — they're constraint
+arithmetic with exact rupee amounts, not judgment. And when `nestor-reason` is
+unavailable, this same weighted ranking plus template-based strengths/trade-off/confidence
+text produces the answer, so the product works end-to-end with Gemini fully down.
 
 ---
 
@@ -219,7 +241,9 @@ HomeHuntAI/
 │   │   └── utils.ts                # cn, formatINR, joinClauses
 │   └── styles/globals.css          # Tailwind v4 + design tokens
 ├── supabase/
-│   ├── functions/nestor-intent/    # ⭐ Deno + Gemini edge function
+│   ├── functions/
+│   │   ├── nestor-intent/          # ⭐ Deno + Gemini: brief → structured intent
+│   │   └── nestor-reason/          # ⭐ Deno + Gemini: candidates → picks + explanations
 │   └── migrations/
 │       ├── 0001_create_properties.sql
 │       ├── 0002_create_copilot_requests.sql
@@ -227,7 +251,7 @@ HomeHuntAI/
 ├── scripts/
 │   ├── generate-listings.mjs       # Deterministic seed generator
 │   └── migrate-to-supabase.mjs     # One-off seed → Postgres migration
-├── tests/                          # 11 Playwright specs (65 tests)
+├── tests/                          # 11 Playwright specs (66 tests)
 ├── vercel.json                     # SPA rewrite
 └── vite.config.ts
 ```
@@ -356,15 +380,17 @@ npm run preview   # Preview the production build
 npm run lint      # Oxlint
 ```
 
-### Deploying the edge function
+### Deploying the edge functions
 
-Nestor's Gemini parsing needs the `nestor-intent` function deployed:
+Nestor's Gemini layers need both functions deployed — `nestor-intent` (brief → structured
+intent) and `nestor-reason` (candidates → picks + explanations):
 
 ```bash
 npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase secrets set GEMINI_API_KEY=<your-gemini-key>
 npx supabase functions deploy nestor-intent
+npx supabase functions deploy nestor-reason
 ```
 
 This function was previously named `copilot-intent`. Renaming it in the repo does **not** rename
@@ -378,7 +404,8 @@ npx supabase functions delete copilot-intent
 runtime — no manual config needed. Dependencies resolve at deploy time via `npm:` specifiers,
 so there's no separate install step.
 
-> Without this, Nestor still works — it falls back to the local regex parser.
+> Without these, Nestor still works — it falls back to the local regex parser and the
+> deterministic ranking.
 
 ### Tests
 
@@ -426,8 +453,8 @@ correctly on refresh.
 | Integration | Purpose |
 | --- | --- |
 | **Supabase PostgREST** (`@supabase/supabase-js`) | All listing reads. Filters (`region`, `listing_type`, `property_type`, `bhk`, `price`) run server-side as query predicates; free-text search uses `.or()` + `ilike` across title, locality, sub-locality, city and project name. Rows are mapped snake_case → camelCase and validated through `propertySchema.parse` so bad data fails loudly. |
-| **Supabase Edge Functions** | Hosts `nestor-intent` (Deno). CORS-enabled, `POST { rawText, prevIntent }` → `{ intent, refined, offTopic }`. Input capped at 500 chars. |
-| **Google Gemini** (`@google/genai`) | Natural-language intent extraction with a constrained JSON `responseSchema`. Server-side only — the API key never reaches the browser. |
+| **Supabase Edge Functions** | Hosts `nestor-intent` (`POST { rawText, prevIntent }` → `{ intent, refined, offTopic }`, input capped at 500 chars) and `nestor-reason` (`POST { brief, intent, candidates, context }` → `{ summary, picks }`, ids validated against the submitted candidates). Both Deno, CORS-enabled, sharing one rate-limit log. |
+| **Google Gemini** (`@google/genai`) | Two calls per turn: intent extraction, then reasoning over the candidate shortlist — both with constrained JSON `responseSchema`s. Server-side only — the API key never reaches the browser. |
 
 **Data flow for one Nestor turn:**
 
@@ -439,19 +466,21 @@ brief → isLikelyOutOfScope? ──yes──► redirect reply (no network)
              │
         ok ──┴── fail ──► local regex parser (parseIntent / refineIntent)
              ▼
-   NestorIntent → selectCandidates → fitScore → strengths
-                 → tradeoff → confidence → near-misses → NestorAnswer
+   NestorIntent → selectCandidates → fitScore shortlist (top 12) → hydrate
+             ▼
+   nestor-reason (rate limit → Gemini picks/ranks/explains → id validation)
+             │
+        ok ──┴── fail ──► deterministic ranking + template explanations
+             ▼
+   picks + near-misses (deterministic) → NestorAnswer
 ```
 
 ---
 
 ## 🗺️ Future Roadmap
 
-Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
+Not yet implemented:
 
-- **Performance** — Nestor's ~5.1 MB listings chunk still loads in one shot on first visit to `/nestor`. Options: fetch the JSON as a static asset, or have Nestor query Supabase directly.
-- **Unify Nestor's data source** — retire the local seed snapshot so ranking reads live Supabase data, removing the second source of truth.
-- **Full Gemini reasoning** — let Gemini reason over candidate listings end-to-end, rather than parsing intent only.
 - **Supabase Storage** — real uploaded property imagery.
 - **Smaller polish** — a shortlist heart on Nestor's pick cards; bulk-clearing the shortlist; a drawer if mobile nav outgrows 4 tabs.
 
@@ -462,7 +491,7 @@ Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
 1. Fork and branch off `master` (`git checkout -b feature/your-feature`).
 2. Follow the existing structure — features live in `src/features/<domain>/`, shared UI in `src/components/ui/`.
 3. `src/features/properties/types.ts` is the **single source of truth**. Change the Zod schema first; types are inferred from it.
-4. Keep Nestor's ranking **deterministic**. Gemini parses intent; it does not rank.
+4. Keep Nestor's **hard filters, shortlisting and near-misses deterministic**. Gemini decides and explains only within the validated candidate slate — never let it see the whole catalogue or emit an unvalidated id.
 5. Before opening a PR:
 
    ```bash
@@ -471,7 +500,7 @@ Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
    npm run test:all      # E2E + accessibility, full browser matrix
    ```
 
-6. Update [`project-stage.md`](project-stage.md) and this README if your change affects documented behavior.
+6. Update this README if your change affects documented behavior.
 
 > One standing lint warning is pre-existing in `src/components/ui/button.tsx`.
 
