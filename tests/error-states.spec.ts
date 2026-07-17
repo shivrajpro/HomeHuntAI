@@ -2,22 +2,35 @@ import { test, expect } from '@playwright/test'
 import { submitNestorBrief } from './helpers'
 
 test.describe('Resilience — network failures', () => {
-  test('Nestor falls back to the local parser when the Gemini edge function is unreachable', async ({ page }) => {
-    await page.route('**/functions/v1/nestor-intent', (route) => route.abort('failed'))
+  test('Nestor falls back fully local when both Gemini edge functions are unreachable', async ({ page }) => {
+    // `nestor-*` covers both `nestor-intent` (parsing) and `nestor-reason`
+    // (picks/explanations) — Gemini fully down.
+    await page.route('**/functions/v1/nestor-*', (route) => route.abort('failed'))
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
 
     await page.goto('/nestor')
     await submitNestorBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
 
-    // The deterministic downstream ranking still runs off the regex-parsed
-    // intent, so picks should still appear even with Gemini fully down.
+    // The regex parser + deterministic ranking still produce explained picks.
     await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
     expect(errors).toEqual([])
   })
 
-  test('Nestor degrades gracefully when the edge function returns an error response', async ({ page }) => {
-    await page.route('**/functions/v1/nestor-intent', (route) =>
+  test('Nestor keeps Gemini intent parsing but ranks deterministically when only nestor-reason is down', async ({ page }) => {
+    await page.route('**/functions/v1/nestor-reason', (route) => route.abort('failed'))
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Peaceful, green 3 BHK villa in Delhi NCR for my retired parents.')
+
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+    expect(errors).toEqual([])
+  })
+
+  test('Nestor degrades gracefully when the edge functions return error responses', async ({ page }) => {
+    await page.route('**/functions/v1/nestor-*', (route) =>
       route.fulfill({ status: 500, body: JSON.stringify({ error: 'boom' }) }),
     )
     await page.goto('/nestor')

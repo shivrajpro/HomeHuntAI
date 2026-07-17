@@ -29,13 +29,15 @@ const supabaseAdmin = createClient(
 )
 
 // Cheap abuse guard: cap how many Gemini calls a single caller can trigger.
-// Deliberately conservative (a real search session is a handful of turns) —
-// the app degrades gracefully rather than erroring when this trips, since
+// The `nestor_requests` log is shared with `nestor-reason`, and a full Nestor
+// turn now costs two Gemini calls (parse here + reason there), so 60 keeps
+// the same ~30 turns/hour budget the original single-call limit allowed. The
+// app degrades gracefully rather than erroring when this trips, since
 // `reasoning.ts` falls back to the local regex parser on any non-2xx
 // response from this function. This bounds Gemini spend without needing a
 // hard per-key cost cap (Gemini/Cloud Billing has no such thing built in).
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
-const RATE_LIMIT_MAX_REQUESTS = 30
+const RATE_LIMIT_MAX_REQUESTS = 60
 // Bounds prompt size fed to Gemini — also cuts off obvious paste-spam abuse.
 const MAX_RAW_TEXT_LENGTH = 500
 

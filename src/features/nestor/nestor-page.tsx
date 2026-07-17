@@ -37,12 +37,13 @@ import { cn, formatINR } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/use-document-title'
 
 /**
- * Nestor — a chat-style front end over `reasoning.ts`. The user
- * describes what they want in plain language; intent parsing goes through
- * Gemini via a Supabase Edge Function (falling back to a local regex parser
- * if that's unavailable), then ranking and explanations stay deterministic,
- * replying with explained picks that deep-link into the property detail
- * pages.
+ * Nestor — a chat-style front end over `reasoning.ts`. The user describes
+ * what they want in plain language; Gemini (via Supabase Edge Functions)
+ * parses the brief into a structured intent, then reasons over a
+ * deterministically shortlisted set of real candidate listings to pick, rank
+ * and explain the recommendations — falling back to the local parser and
+ * deterministic ranking independently if either call is unavailable. Picks
+ * deep-link into the property detail pages.
  */
 
 interface ChatMessage {
@@ -571,8 +572,8 @@ export function NestorPage() {
     setInput('')
     setThinking(true)
 
-    // Intent parsing calls Gemini (via a Supabase Edge Function); ranking and
-    // explanations stay local, so this only awaits the parsing step.
+    // Two Gemini calls behind one await: intent parsing, then reasoning over
+    // the candidate shortlist — each degrades to its local fallback on error.
     const answer = await runNestor(text, lastIntentRef.current)
     // Don't carry an off-topic turn's (empty) intent forward — doing so would
     // make the *next* message look like a follow-up to an established search
@@ -685,7 +686,7 @@ export function NestorPage() {
         <p className="mt-1.5 px-1 text-center text-xs text-muted-foreground">
           {input.trim().length > 0 && input.trim().length < MIN_QUERY_LENGTH
             ? `Type at least ${MIN_QUERY_LENGTH} characters.`
-            : `Understands your brief with Gemini, then ranks and explains real listings deterministically.`}
+            : `Gemini reasons over real listings — picking, ranking and explaining every recommendation.`}
           {input.length >= MAX_QUERY_LENGTH * 0.9 && (
             <span className="ml-1 text-muted-foreground/80">
               ({input.length}/{MAX_QUERY_LENGTH})
