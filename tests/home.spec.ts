@@ -6,7 +6,7 @@ test.describe('Home page', () => {
     await page.goto('/')
     await expect(page).toHaveTitle(/HomeHunt AI/)
     await expect(page.getByRole('heading', { level: 1 })).toContainText('fits your life')
-    await expect(page.getByRole('link', { name: /Start with the copilot/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Start with Nestor/i })).toBeVisible()
     await expect(page.getByRole('link', { name: /Browse homes/i })).toBeVisible()
   })
 
@@ -14,13 +14,13 @@ test.describe('Home page', () => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Smart matching' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Neighborhood intel' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Decision copilot' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ask Nestor' })).toBeVisible()
   })
 
-  test('"Start with the copilot" navigates to /copilot', async ({ page }) => {
+  test('"Start with Nestor" navigates to /nestor', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('link', { name: /Start with the copilot/i }).click()
-    await expect(page).toHaveURL(/\/copilot$/)
+    await page.getByRole('link', { name: /Start with Nestor/i }).click()
+    await expect(page).toHaveURL(/\/nestor$/)
   })
 
   test('"Browse homes" navigates to /explore', async ({ page }) => {

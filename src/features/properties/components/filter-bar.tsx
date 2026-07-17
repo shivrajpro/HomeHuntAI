@@ -52,7 +52,7 @@ const PRICE_OPTIONS = [
   { value: 5_00_00_000, label: '₹5 Cr' },
 ]
 
-/** Seed the string-based form from URL params (the Copilot → Explore hand-off). */
+/** Seed the string-based form from URL params (Nestor → Explore hand-off). */
 function formFromParams(params: URLSearchParams): FilterForm {
   const f = paramsToFilters(params)
   return {
@@ -88,7 +88,7 @@ export function FilterBar({
   onChange: (filters: PropertyFilters) => void
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
-  // Seed once from the URL — either a Copilot hand-off or a refreshed/shared
+  // Seed once from the URL — either a Nestor hand-off or a refreshed/shared
   // Explore link — then keep writing back to it below so the URL stays the
   // source of truth for the current search (shareable, survives a refresh).
   const [initialForm] = useState(() => formFromParams(searchParams))

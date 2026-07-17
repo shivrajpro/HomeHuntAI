@@ -18,7 +18,7 @@ test.describe('Accessibility', () => {
       path: '/explore',
       setup: async (page) => waitForExploreLoaded(page),
     },
-    { name: 'Copilot (empty)', path: '/copilot' },
+    { name: 'Nestor (empty)', path: '/nestor' },
     { name: 'Shortlist (empty)', path: '/shortlist' },
     { name: 'Compare (empty)', path: '/compare' },
     { name: '404', path: '/no-such-route' },

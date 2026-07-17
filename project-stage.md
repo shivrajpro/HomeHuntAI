@@ -7,7 +7,7 @@
 
 ## The idea
 
-**HomeHuntAI** is an AI-powered home-decision copilot for the Indian property
+**HomeHuntAI** is an AI-powered home-decision partner for the Indian property
 market. Instead of forcing buyers/renters to wrestle with raw filters and
 spreadsheets, it reads listings, neighborhoods, and the user's stated priorities
 and helps them *decide with confidence*.
@@ -18,7 +18,7 @@ and helps them *decide with confidence*.
   Localities and landmarks are real; every builder, project, price, and contact
   is invented. Each locality carries AI scores (walkability, family, investment,
   commute, safety, nightlife, green cover).
-- **Differentiator:** the **Copilot** — a conversational layer that ranks homes
+- **Differentiator:** **Nestor** — a conversational layer that ranks homes
   by *fit* and explains trade-offs, reasoning over the AI scores rather than
   dumping specs.
 
@@ -27,7 +27,7 @@ and helps them *decide with confidence*.
 Vite 8 · React 19 · TypeScript · Tailwind v4 · React Router 7 ·
 TanStack Query · Zod · react-hook-form · framer-motion · next-themes ·
 Supabase (Postgres data layer, wired in Phase 2; Edge Functions + Gemini for
-Copilot intent parsing, wired in Phase 3 — both part of the stack migration
+Nestor intent parsing, wired in Phase 3 — both part of the stack migration
 below).
 
 ### Planned stack migration (decided 2026-07-16, in progress)
@@ -56,7 +56,7 @@ quality, meaningful use of AI, creativity).
 2. Supabase client wiring — swap mock `api.ts` for real Supabase queries
    behind the same `useProperties`/`useProperty` hook interfaces.
 3. Gemini 2.5 Flash via a Supabase Edge Function — replaces/fronts the local
-   `reasoning.ts` Copilot engine. Highest-leverage for "meaningful use of AI".
+   `reasoning.ts` Nestor engine. Highest-leverage for "meaningful use of AI".
 4. Deploy: Vercel (frontend) + Supabase (backend) — get a live URL early.
 5. Storage (property images) — lowest priority, real uploaded imagery.
 
@@ -86,19 +86,19 @@ detail page renders full nested data, and the `.in()` query behind
 (Phase 3) still imports the local `listings.json` seed. **Phase 3 — Gemini
 2.5 Flash via a Supabase Edge Function — next.**
 
-**Phase 3 done** (2026-07-16) — intent parsing (turning a free-text Copilot
+**Phase 3 done** (2026-07-16) — intent parsing (turning a free-text Nestor
 brief, plus the previous turn's intent on a follow-up, into a structured
-`CopilotIntent`) now goes through Gemini via a new Supabase Edge Function,
-`supabase/functions/copilot-intent` (Deno, uses the official `@google/genai`
+`NestorIntent`) now goes through Gemini via a new Supabase Edge Function,
+`supabase/functions/nestor-intent` (Deno, uses the official `@google/genai`
 SDK's `GoogleGenAI` client, `npm:@google/genai` specifier — no separate
 install step, Deno resolves it at deploy time). Ranking and all explanation
 text (fit scores, strengths/trade-off/confidence, near-misses, Decision
 Report) stay the existing deterministic TypeScript in `reasoning.ts` — same
-`CopilotIntent`/`CopilotAnswer` shapes, no UI changes needed beyond making
-`runCopilot` async. `deriveIntentAsync` calls the edge function first and
+`NestorIntent`/`NestorAnswer` shapes, no UI changes needed beyond making
+`runNestor` async. `deriveIntentAsync` calls the edge function first and
 falls back to the original regex parser (`deriveIntent`, kept in place) on
 any network/API failure, so a Gemini outage degrades gracefully instead of
-breaking the Copilot. Model picked by live-probing this project's actual
+breaking Nestor. Model picked by live-probing this project's actual
 Gemini key/quota: `gemini-2.5-flash` and `gemini-2.5-flash-lite` are
 hard-blocked for new API keys (404), the `gemini-2.0-flash` line has zero
 free-tier quota on this key (429), and `gemini-3.5-flash`/`gemini-flash-latest`
@@ -110,7 +110,7 @@ real dev server (not just direct edge-function curls): a first-turn brief
 with two life-stage phrases surfaced both lifestyle tags and ranked picks
 correctly, a follow-up ("make it cheaper") correctly cut the budget by 20%
 and re-ranked, "Updated your search." led the reply, and there were no
-console errors. Also fixed the Copilot's footer caption, which used to
+console errors. Also fixed Nestor's footer caption, which used to
 claim "no data leaves your browser" — no longer true now that the brief is
 sent to the edge function. **Architecture decision:** this is intentionally
 Gemini-for-parsing-only for now (ranking/explanations stay deterministic);
@@ -126,10 +126,35 @@ Supabase — next.**
 
 ### Done
 
+- **Assistant renamed "Copilot" → "Nestor" (2026-07-17):** a full branding
+  pass, not just a text swap. Header nav reads **"Ask Nestor"**; the route
+  moved `/copilot` → `/nestor`; UI copy, document titles, the off-topic scope
+  fallback and the marketing home page all speak as Nestor. Code followed the
+  branding: `src/features/copilot/` → `src/features/nestor/`,
+  `copilot-page.tsx` → `nestor-page.tsx`, `CopilotIntent`/`CopilotAnswer` →
+  `NestorIntent`/`NestorAnswer`, `runCopilot` → `runNestor`,
+  `tests/copilot.spec.ts` → `tests/nestor.spec.ts`. Earlier entries in this
+  file were rewritten to the new names so they still match the code they
+  describe — the rename is recorded here rather than left implicit.
+  **The two backend renames were applied to live Supabase and verified
+  (2026-07-17):** `nestor-intent` deployed and `copilot-intent` deleted; the
+  rate-limit table renamed via `0003_rename_copilot_requests_to_nestor.sql` —
+  verified with the service-role key that `nestor_requests` exists carrying its
+  91 rows forward and `copilot_requests` is gone (PGRST205). A repo rename does
+  not rename deployed infrastructure, so both needed doing by hand. 0002
+  deliberately still creates `copilot_requests`: it was already applied to the
+  live database, so the rename is a forward migration, not an edit to history.
+  The fallback path is unchanged — if the function or Gemini is unavailable,
+  `deriveIntentAsync` still drops to the local regex parser. One UX fix fell out of
+  the rename: the `/decision-report` empty-state CTA was briefly also labelled
+  "Ask Nestor", colliding with the identically-named header nav link (two
+  same-named links to the same route — ambiguous for screen readers, and a
+  Playwright strict-mode violation); it now reads "Start with Nestor".
+
 - **QA pass — full Playwright E2E suite + bug fixes (2026-07-17):** a
   full-app QA sweep (`tests/*.spec.ts`, 65 tests × 6 projects — Chromium,
   Firefox, WebKit, tablet, Mobile Chrome, Mobile Safari — 390 runs, all
-  green) covering every route, filter/search, the Copilot (including
+  green) covering every route, filter/search, Nestor (including
   Gemini-outage and rate-limit fallback), compare, shortlist, theming, 404s,
   and an automated axe-core accessibility scan. Found and fixed real bugs:
   (1) the Explore filter `<select>`s and property-gallery thumbnail buttons
@@ -137,19 +162,19 @@ Supabase — next.**
   (2) every route shared one static "HomeHunt AI" document title with no
   per-page SEO differentiation — added `useDocumentTitle`
   (`src/lib/use-document-title.ts`), wired into every page; (3) the router
-  statically imported every route including the Copilot, which still pulls
+  statically imported every route including Nestor, which still pulls
   in the ~5.7MB local listings seed (see Phase 6 below) — this put that
   whole payload on *every* page's initial load and, concretely, hung
   Firefox indefinitely on a page reload waiting for that module to finish
   fetching. Fixed via route-level code-splitting (`React.lazy` + a
   `Suspense` boundary in `root-layout.tsx`), which also cut the initial JS
-  payload from ~6MB to ~766KB (Copilot's chunk now loads only when a user
-  opens `/copilot`) — a meaningful, verified head start on Phase 6. No
+  payload from ~6MB to ~766KB (Nestor's chunk now loads only when a user
+  opens `/nestor`) — a meaningful, verified head start on Phase 6. No
   authentication exists in this app (confirmed by reading the codebase), so
   auth/session flows were out of scope for this pass.
 - **Phase 5 — UX improvements:**
-  - **Visual fit meter** — each Copilot pick gets a collapsed-by-default "Fit
-    breakdown" disclosure (`PickCard` in `copilot-page.tsx`) showing Budget,
+  - **Visual fit meter** — each Nestor pick gets a collapsed-by-default "Fit
+    breakdown" disclosure (`PickCard` in `nestor-page.tsx`) showing Budget,
     Commute, Lifestyle, Family, and Investment as 0–100 bars, alongside the
     Overall Fit % already shown. `fit-meter.ts` builds the bars by reusing
     `aiInsights` directly and `lifestyleScore` (newly exported from
@@ -166,7 +191,7 @@ Supabase — next.**
   - **URL-synced filters** — `FilterBar` now writes filters back to the URL
     (`filtersToParams`, `history: replace` so typing doesn't spam browser
     history) in the same debounced effect that already pushed filters to
-    `ExplorePage`, on top of the existing one-time URL seed from the Copilot
+    `ExplorePage`, on top of the existing one-time URL seed from Nestor
     hand-off. Verified a filter change updates the URL and survives a
     refresh.
   - **Saved shortlist** — a new `shortlist-context.tsx` (`ShortlistProvider`/
@@ -177,12 +202,12 @@ Supabase — next.**
     sidebar. `/shortlist` (`shortlist-page.tsx`) lists saved homes via the
     existing `usePropertiesByIds` hook — "compare shortlisted homes" is
     satisfied by reusing each card's existing Compare toggle rather than
-    building a second mechanism. Note: the Copilot's `PickCard` doesn't get a
+    building a second mechanism. Note: Nestor's `PickCard` doesn't get a
     shortlist heart, consistent with it also not having a Compare toggle
     today.
   - **Mobile navigation** — a fixed bottom tab bar (`MobileNav` in
     `root-layout.tsx`, `sm:hidden`) replaces the previously-hidden mobile nav
-    dead end, with Home/Explore/Copilot/Shortlist tabs (Shortlist carries a
+    dead end, with Home/Explore/Nestor/Shortlist tabs (Shortlist carries a
     count badge, mirrored on the desktop nav too). `<main>` gained mobile-only
     bottom padding (`pb-24 sm:pb-8`) and `CompareTray` shifted up
     (`bottom-20 sm:bottom-4`) so neither is hidden behind the new bar.
@@ -191,7 +216,7 @@ Supabase — next.**
     `/shortlist` page + badge count, fit-meter bars rendering without
     breaking card navigation, and the mobile tab bar navigating correctly.
 
-- **Copilot Phase 4 — lifestyle-based search:** natural lifestyle statements
+- **Nestor Phase 4 — lifestyle-based search:** natural lifestyle statements
   ("we're expecting our first baby", "I work remotely", "my parents will stay
   with us", "we have a dog") now convert into AI priorities automatically.
   `LIFE_STAGES` in `reasoning.ts` (already the Phase 1/2 home for phrases like
@@ -199,19 +224,19 @@ Supabase — next.**
   planning a family, Multigenerational household, Remote / work-from-home,
   Pet owner — each pairing a phrase pattern with the dimensions it implies
   and a display `label`. `parsePriorities` now also returns matched
-  `lifestyleTags`, carried on `CopilotIntent` and merged turn-over-turn in
+  `lifestyleTags`, carried on `NestorIntent` and merged turn-over-turn in
   `refineIntent` (`dedupe`), so a lifestyle detail mentioned once stays
   remembered across follow-ups. Reused the existing Phase 1 editable-priority
   chips for the "let users edit before regenerating" requirement rather than
   building a second editor; added a read-only "Read from your lifestyle:"
-  tag row above them (`PriorityEditor` in `copilot-page.tsx`) so users see
+  tag row above them (`PriorityEditor` in `nestor-page.tsx`) so users see
   *why* those dimensions were inferred, and the same line surfaces in the
   Decision Report's "AI Understanding" section (`buildUnderstanding` in
   `decision-report.ts`). Verified in-browser with Playwright: a brief
   combining all four new phrases correctly showed all four tags and drove
   sensible rankings, with no console errors.
 
-- **Copilot Phase 3 — comparison + Decision Report:**
+- **Nestor Phase 3 — comparison + Decision Report:**
   - **Compare homes (2–3 side by side)** — a site-wide compare selection
     (`compare-context.tsx`: `CompareProvider`/`useCompare`, max 3,
     localStorage-persisted) surfaced via a "Compare" toggle on `PropertyCard`
@@ -226,10 +251,10 @@ Supabase — next.**
     — cheapest scores highest), averaged into a composite, and the winner gets
     a "Best overall" badge plus a reasoning paragraph and runner-up notes.
   - **Decision Report** — `decision-report.ts` packages an existing
-    `CopilotAnswer` (no new scoring, just structuring what the reasoning
+    `NestorAnswer` (no new scoring, just structuring what the reasoning
     engine already produced) into User Requirements, AI Understanding, Top
     Recommendation, Strengths, Trade-offs, Alternative Options, Final
-    Recommendation. Reached via a "View Decision Report" button on any Copilot
+    Recommendation. Reached via a "View Decision Report" button on any Nestor
     answer, which navigates to `/decision-report`
     (`decision-report-page.tsx`) passing the answer through React Router
     location state — no backend, no persistence needed.
@@ -237,7 +262,7 @@ Supabase — next.**
     shared `lib/utils.ts` so `comparison.ts` and `decision-report.ts` could
     reuse it without duplication.
 
-- **Copilot fix — infer Buy vs Rent from the price unit** — a brief like
+- **Nestor fix — infer Buy vs Rent from the price unit** — a brief like
   "high-investment 2 BHK apartment in Pune under 90 Lakh" names no explicit
   "buy"/"rent" word, so `listingType` stayed unset and the ₹90L ceiling
   matched Rent listings too — `price` is a *monthly rent* for those, so it
@@ -249,7 +274,7 @@ Supabase — next.**
   message itself names no explicit type). An explicit "buy"/"rent" word
   still always wins.
 
-- **Copilot Phase 2 — better decision-making** — each pick now explains itself
+- **Nestor Phase 2 — better decision-making** — each pick now explains itself
   three ways: (a) a **"Why this home"** strengths list (`buildStrengths`) —
   plain-language reasons drawn from the user's own priorities first, topped up
   with the home's standout traits, with the raw 0–100 scores kept internal
@@ -267,8 +292,8 @@ Supabase — next.**
   checked strengths list + a Scale trade-off row + a ShieldCheck confidence
   line; `RejectedSection` is an animated disclosure under each answer.
 
-- **Copilot** (`/copilot`) — chat-style UI over a **local reasoning engine**
-  (`src/features/copilot/reasoning.ts`, no backend/LLM). Parses a free-text
+- **Nestor** (`/nestor`) — chat-style UI over a **local reasoning engine**
+  (`src/features/nestor/reasoning.ts`, no backend/LLM). Parses a free-text
   brief (listing type, city/region, ₹ budget incl. `cr`/`lakh`/`k`, BHK,
   property type, priorities + life-stage phrases), ranks listings by weighted
   fit against `aiInsights` (first-named priority weighted highest), and
@@ -276,8 +301,8 @@ Supabase — next.**
   relaxation guarantees enough results; picks deep-link into detail pages.
   Deterministic — same brief, same answer. Starter example chips, typing
   indicator, keyboard submit.
-- **Copilot multi-turn memory** — the Copilot now carries structured
-  conversation state (the last turn's `CopilotIntent`, in a `lastIntentRef`),
+- **Nestor multi-turn memory** — Nestor now carries structured
+  conversation state (the last turn's `NestorIntent`, in a `lastIntentRef`),
   so follow-ups refine the previous search instead of resetting. `refineIntent`
   merges a new message onto the prior intent: relative budget nudges ("make it
   cheaper" → ×0.8, "increase the budget" → ×1.25), city/BHK/type overrides,
@@ -287,15 +312,15 @@ Supabase — next.**
   read before the positive parse so "no apartments" never sets an Apartment
   filter. Refined replies lead with "Updated your search." Still fully
   deterministic.
-- **Copilot → Explore hand-off** — every answer has a "View these in Explore"
-  action that maps the current `CopilotIntent` onto Explore's filters via URL
+- **Nestor → Explore hand-off** — every answer has a "View these in Explore"
+  action that maps the current `NestorIntent` onto Explore's filters via URL
   query params (`src/features/properties/filter-params.ts`, enum-validated on
   read). `FilterBar` seeds its form from the URL once on mount and injects a
   custom price/BHK option when the handed-off value isn't a preset, so the
   exact budget shows. Filters now also write back to the URL as they change
   (Phase 5's URL-synced filters), so the hand-off and manual searches both
   end up shareable.
-- **Copilot editable priorities** — each answer shows its detected priorities
+- **Nestor editable priorities** — each answer shows its detected priorities
   as chips (ordered by weight, first counts most): remove active ones (last one
   locked), add from the remaining dimensions. Any change re-ranks in place via
   `rerankIntent` — no re-parsing, and it carries into the next turn's memory.
@@ -334,16 +359,16 @@ Supabase — next.**
    "Planned stack migration" section above.
 1. **Phase 6 — performance** *(next up, last roadmap phase)* — the
    2026-07-17 QA pass route-split the app (see above), so the 2,000-listing
-   JSON no longer loads on every page — only `/copilot`. It's still a single
-   ~5.1MB chunk fetched in one shot the first time a user opens the Copilot
+   JSON no longer loads on every page — only `/nestor`. It's still a single
+   ~5.1MB chunk fetched in one shot the first time a user opens Nestor
    (`npm run build` still warns on that chunk specifically), and `reasoning.ts`
    still ranks against this static local snapshot rather than live Supabase
    data (a second source of truth vs. Explore, which already queries Supabase
    — see the Phase 3 architecture note above). Fetching the JSON as a static
-   asset instead of a JS import, or having the Copilot query Supabase
+   asset instead of a JS import, or having Nestor query Supabase
    directly, remains open.
 2. **Possible follow-ups beyond the roadmap:** a shortlist heart on the
-   Copilot's `PickCard` (currently Explore/detail-page only, matching that
+   Nestor's `PickCard` (currently Explore/detail-page only, matching that
    Compare is also absent there today — see Phase 5 notes above); clearing
    individual/all shortlist items from `/shortlist` beyond un-hearting each
    card; a proper mobile drawer if the 4-tab bottom bar ever needs a 5th

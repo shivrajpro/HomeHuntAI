@@ -1,14 +1,14 @@
 import { formatINR } from '@/lib/utils'
 import {
   PRIORITY_OPTIONS,
-  type CopilotAnswer,
-  type CopilotIntent,
+  type NestorAnswer,
+  type NestorIntent,
   type PriorityDimension,
   type RankedPick,
-} from '@/features/copilot/reasoning'
+} from '@/features/nestor/reasoning'
 
 /**
- * Packages an already-computed `CopilotAnswer` into a premium "Decision
+ * Packages an already-computed `NestorAnswer` into a premium "Decision
  * Report" — no new scoring, just structuring what the reasoning engine
  * already produced into: User Requirements, AI Understanding, Top
  * Recommendation, Strengths, Trade-offs, Alternative Options, Final
@@ -30,7 +30,7 @@ function priorityLabel(dim: PriorityDimension): string {
   return PRIORITY_OPTIONS.find((o) => o.value === dim)?.label ?? dim
 }
 
-function buildRequirements(intent: CopilotIntent): string[] {
+function buildRequirements(intent: NestorIntent): string[] {
   const out: string[] = []
   out.push(
     intent.listingType === 'Rent'
@@ -53,7 +53,7 @@ function buildRequirements(intent: CopilotIntent): string[] {
   return out
 }
 
-function buildUnderstanding(intent: CopilotIntent, relaxedNote?: string): string[] {
+function buildUnderstanding(intent: NestorIntent, relaxedNote?: string): string[] {
   const out: string[] = []
   const labels = intent.priorities.map(priorityLabel)
   out.push(
@@ -83,7 +83,7 @@ function buildAlternativeNote(top: RankedPick, alt: RankedPick): string {
 
 function buildFinalRecommendation(
   top: RankedPick | undefined,
-  intent: CopilotIntent,
+  intent: NestorIntent,
 ): string {
   if (!top) {
     return "No home in our listings met your requirements closely enough to recommend — try widening your budget or city."
@@ -95,7 +95,7 @@ function buildFinalRecommendation(
   return `${top.property.title} in ${location} is the top recommendation at ${price}. ${leadStrength}, and ${basis}`
 }
 
-export function buildDecisionReport(answer: CopilotAnswer): DecisionReport {
+export function buildDecisionReport(answer: NestorAnswer): DecisionReport {
   const [topPick, ...alternativePicks] = answer.picks
   return {
     brief: answer.intent.rawText,

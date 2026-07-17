@@ -12,13 +12,13 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { buildDecisionReport } from '@/features/copilot/decision-report'
-import type { CopilotAnswer } from '@/features/copilot/reasoning'
+import { buildDecisionReport } from '@/features/nestor/decision-report'
+import type { NestorAnswer } from '@/features/nestor/reasoning'
 import { formatINR } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/use-document-title'
 
 interface LocationState {
-  answer?: CopilotAnswer
+  answer?: NestorAnswer
 }
 
 function Section({
@@ -55,11 +55,11 @@ export function DecisionReportPage() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">No report to show</h1>
           <p className="text-muted-foreground">
-            Decision reports are generated from a Copilot search. Start a conversation to
-            get one.
+            Decision reports are generated from a search with Nestor. Start a conversation
+            to get one.
           </p>
           <Button asChild>
-            <Link to="/copilot">Go to Copilot</Link>
+            <Link to="/nestor">Start with Nestor</Link>
           </Button>
         </div>
       </div>
@@ -77,9 +77,9 @@ export function DecisionReportPage() {
       className="mx-auto max-w-3xl space-y-6"
     >
       <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-        <Link to="/copilot">
+        <Link to="/nestor">
           <ArrowLeft className="size-4" />
-          Back to Copilot
+          Back to Nestor
         </Link>
       </Button>
 

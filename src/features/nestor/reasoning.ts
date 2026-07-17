@@ -12,11 +12,11 @@ import {
 import { formatINR, joinClauses } from '@/lib/utils'
 
 /**
- * The Copilot's reasoning engine. A first message is classified in-scope vs.
+ * Nestor's reasoning engine. A first message is classified in-scope vs.
  * out-of-scope locally (`isLikelyOutOfScope`) before anything else runs —
  * out-of-scope briefs never reach the network. In-scope intent parsing
- * (turning a free-text brief into a structured `CopilotIntent`) is delegated
- * to Gemini 2.5 Flash via the `copilot-intent` Supabase Edge Function — see
+ * (turning a free-text brief into a structured `NestorIntent`) is delegated
+ * to Gemini 2.5 Flash via the `nestor-intent` Supabase Edge Function — see
  * `deriveIntentAsync` below — with the original regex-based parser
  * (`parseIntent`/`refineIntent`) kept as an offline fallback if that call
  * fails. Everything downstream of intent (candidate selection, fit scoring,
@@ -192,7 +192,7 @@ const LIFE_STAGES: { pattern: RegExp; dimensions: Dimension[]; label: string }[]
   },
 ]
 
-export interface CopilotIntent {
+export interface NestorIntent {
   listingType?: ListingType
   region?: Region
   maxPrice?: number
@@ -233,8 +233,8 @@ export interface RejectedPick {
   reason: string
 }
 
-export interface CopilotAnswer {
-  intent: CopilotIntent
+export interface NestorAnswer {
+  intent: NestorIntent
   summary: string
   picks: RankedPick[]
   /** Strong homes excluded by exactly one hard constraint, with the reason. */
@@ -385,7 +385,7 @@ function parsePriorities(text: string): {
   }
 }
 
-export function parseIntent(rawText: string): CopilotIntent {
+export function parseIntent(rawText: string): NestorIntent {
   const text = rawText.toLowerCase()
   const { priorities, usedDefault, lifestyleTags } = parsePriorities(text)
   const priceDetail = parseMaxPriceDetailed(text)
@@ -404,7 +404,7 @@ export function parseIntent(rawText: string): CopilotIntent {
 }
 
 // --- Multi-turn refinement -------------------------------------------------
-// The Copilot carries structured conversation state (the last `CopilotIntent`)
+// Nestor carries structured conversation state (the last `NestorIntent`)
 // rather than raw chat history. A follow-up message ("make it cheaper", "only
 // Bangalore", "I don't want apartments") is merged onto the previous intent —
 // explicit signals and relative modifiers win; unmentioned fields inherit.
@@ -465,11 +465,11 @@ const WANTS_ANY_TYPE = /\b(any\s+(?:type|property|kind)|all\s+(?:types|propertie
  * when nothing recognisable was found, so the caller can preserve context.
  */
 function refineIntent(
-  prev: CopilotIntent,
+  prev: NestorIntent,
   rawText: string,
-): { intent: CopilotIntent; changed: boolean } {
+): { intent: NestorIntent; changed: boolean } {
   const text = rawText.toLowerCase()
-  const base: CopilotIntent = {
+  const base: NestorIntent = {
     ...prev,
     excludedPropertyTypes: [...prev.excludedPropertyTypes],
     priorities: [...prev.priorities],
@@ -590,7 +590,7 @@ const HOME_SEARCH_HINTS =
   /\b(home|homes|house|houses|flat|flats|apartment|apartments|propert(?:y|ies)|villa|villas|plot|plots|real\s*estate|bhk|rent|renting|buy|buying|budget|locality|neighbo(?:u)?rhood|move|moving|relocat\w*|live|living|lease|tenant|listing|listings)\b/i
 
 /** True when an intent carries no signal at all — every field is unset/default. */
-function isEmptyIntent(intent: CopilotIntent): boolean {
+function isEmptyIntent(intent: NestorIntent): boolean {
   return (
     !intent.listingType &&
     !intent.region &&
@@ -626,8 +626,8 @@ export function isLikelyOutOfScope(rawText: string): boolean {
  */
 export function deriveIntent(
   rawText: string,
-  prev?: CopilotIntent,
-): { intent: CopilotIntent; refined: boolean } {
+  prev?: NestorIntent,
+): { intent: NestorIntent; refined: boolean } {
   if (!prev) return { intent: parseIntent(rawText), refined: false }
   const { intent, changed } = refineIntent(prev, rawText)
   if (changed) return { intent, refined: true }
@@ -635,21 +635,21 @@ export function deriveIntent(
 }
 
 /**
- * Ask the `copilot-intent` Supabase Edge Function (Gemini 2.5 Flash) to parse
+ * Ask the `nestor-intent` Supabase Edge Function (Gemini 2.5 Flash) to parse
  * the brief. Returns `null` on any failure — network error, missing/invalid
  * response — so the caller can fall back to the local regex parser rather
- * than breaking the Copilot when the edge function or Gemini is unavailable.
+ * than breaking Nestor when the edge function or Gemini is unavailable.
  */
 async function deriveIntentRemote(
   rawText: string,
-  prev?: CopilotIntent,
-): Promise<{ intent: CopilotIntent; refined: boolean; offTopic: boolean } | null> {
+  prev?: NestorIntent,
+): Promise<{ intent: NestorIntent; refined: boolean; offTopic: boolean } | null> {
   try {
     const { data, error } = await supabase.functions.invoke<{
-      intent: CopilotIntent
+      intent: NestorIntent
       refined: boolean
       offTopic?: boolean
-    }>('copilot-intent', { body: { rawText, prevIntent: prev } })
+    }>('nestor-intent', { body: { rawText, prevIntent: prev } })
     if (error || !data?.intent) return null
     return { intent: data.intent, refined: data.refined, offTopic: Boolean(data.offTopic) }
   } catch {
@@ -658,7 +658,7 @@ async function deriveIntentRemote(
 }
 
 /**
- * The entry point `runCopilot` uses. A first message is classified locally
+ * The entry point `runNestor` uses. A first message is classified locally
  * (`isLikelyOutOfScope`) *before* touching the network — out-of-scope briefs
  * short-circuit here, so they never spend a Gemini call or hit Supabase.
  * Anything that passes the local classifier goes to Gemini-backed parsing,
@@ -668,8 +668,8 @@ async function deriveIntentRemote(
  */
 export async function deriveIntentAsync(
   rawText: string,
-  prev?: CopilotIntent,
-): Promise<{ intent: CopilotIntent; refined: boolean; offTopic: boolean }> {
+  prev?: NestorIntent,
+): Promise<{ intent: NestorIntent; refined: boolean; offTopic: boolean }> {
   if (!prev && isLikelyOutOfScope(rawText)) {
     return { ...deriveIntent(rawText, prev), offTopic: true }
   }
@@ -682,7 +682,7 @@ export async function deriveIntentAsync(
 
 // --- Candidate selection + ranking -----------------------------------------
 
-function matches(p: Property, intent: CopilotIntent): boolean {
+function matches(p: Property, intent: NestorIntent): boolean {
   if (intent.listingType && p.listingType !== intent.listingType) return false
   if (intent.region && p.region !== intent.region) return false
   if (intent.maxPrice != null && p.price > intent.maxPrice) return false
@@ -694,11 +694,11 @@ function matches(p: Property, intent: CopilotIntent): boolean {
 }
 
 /** Loosen filters — cheapest constraint first — until we have enough homes. */
-function selectCandidates(intent: CopilotIntent): {
+function selectCandidates(intent: NestorIntent): {
   list: Property[]
   relaxed: string[]
 } {
-  const relaxations: { label: string; apply: (i: CopilotIntent) => CopilotIntent }[] =
+  const relaxations: { label: string; apply: (i: NestorIntent) => NestorIntent }[] =
     [
       { label: 'property type', apply: (i) => ({ ...i, propertyType: undefined }) },
       { label: 'BHK count', apply: (i) => ({ ...i, minBhk: undefined }) },
@@ -834,7 +834,7 @@ function buildStrengths(p: Property, priorities: Dimension[]): string[] {
  */
 function buildConfidenceBasis(
   p: Property,
-  intent: CopilotIntent,
+  intent: NestorIntent,
   relaxed: string[],
 ): string {
   const parts: string[] = []
@@ -862,7 +862,7 @@ function buildConfidenceBasis(
  * readable reasons. Listing type is deliberately excluded — a rental is never a
  * near-miss for a purchase — so this only covers budget, city, BHK and type.
  */
-function describeFails(p: Property, intent: CopilotIntent): string[] {
+function describeFails(p: Property, intent: NestorIntent): string[] {
   const fails: string[] = []
   if (intent.maxPrice != null && p.price > intent.maxPrice) {
     fails.push(`${formatINR(p.price - intent.maxPrice)} over your budget`)
@@ -891,7 +891,7 @@ function describeFails(p: Property, intent: CopilotIntent): string[] {
 const NEAR_BUDGET_CEILING = 1.3
 
 function findNearMisses(
-  intent: CopilotIntent,
+  intent: NestorIntent,
   excludeIds: Set<string>,
 ): RejectedPick[] {
   return LISTINGS.filter((p) => !excludeIds.has(p.id))
@@ -917,7 +917,7 @@ function findNearMisses(
     .map(({ property, fit, fails }) => ({ property, fit, reason: fails[0] }))
 }
 
-function buildTradeoff(p: Property, intent: CopilotIntent): string {
+function buildTradeoff(p: Property, intent: NestorIntent): string {
   const weakest = ALL_DIMENSIONS.map((dim) => ({
     label: DIMENSION_META[dim].label,
     score: p.aiInsights[dim],
@@ -936,7 +936,7 @@ function buildTradeoff(p: Property, intent: CopilotIntent): string {
 }
 
 function buildSummary(
-  intent: CopilotIntent,
+  intent: NestorIntent,
   relaxed: string[],
   refined: boolean,
 ): string {
@@ -977,13 +977,13 @@ function buildSummary(
 
 /** Rank + explain the seed listings for an already-resolved intent. */
 function answerFor(
-  rawIntent: CopilotIntent,
+  rawIntent: NestorIntent,
   refined: boolean,
   topN: number,
-): CopilotAnswer {
+): NestorAnswer {
   // An empty priority list would divide by zero in `fitScore`; fall back to the
   // balanced default (can happen if the user removes every priority chip).
-  const intent: CopilotIntent = rawIntent.priorities.length
+  const intent: NestorIntent = rawIntent.priorities.length
     ? rawIntent
     : { ...rawIntent, priorities: DEFAULT_PRIORITIES, usedDefaultPriorities: true }
 
@@ -1028,7 +1028,7 @@ function answerFor(
  * prompted this. `intent` stays empty/default so it's harmless if carried
  * forward as `prevIntent` on the next, hopefully on-topic, turn.
  */
-function offTopicAnswer(rawText: string): CopilotAnswer {
+function offTopicAnswer(rawText: string): NestorAnswer {
   return {
     intent: {
       excludedPropertyTypes: [],
@@ -1038,7 +1038,7 @@ function offTopicAnswer(rawText: string): CopilotAnswer {
       rawText,
     },
     summary:
-      "I'm HomeHuntAI — a Home Decision Copilot focused on Bangalore, Hyderabad, Greater Delhi Area, and Pune. I help you discover real homes to buy or rent based on your city, budget and priorities.",
+      "I'm Nestor — HomeHuntAI's home decision partner, focused on Bangalore, Hyderabad, Greater Delhi Area, and Pune. I help you discover real homes to buy or rent based on your city, budget and priorities.",
     picks: [],
     rejected: [],
     totalMatched: 0,
@@ -1057,7 +1057,7 @@ function offTopicAnswer(rawText: string): CopilotAnswer {
  * follow-up silently re-showed the prior listings as if it were a fresh
  * answer.
  */
-function noNewSignalAnswer(prevIntent: CopilotIntent, rawText: string): CopilotAnswer {
+function noNewSignalAnswer(prevIntent: NestorIntent, rawText: string): NestorAnswer {
   return {
     intent: { ...prevIntent, rawText },
     summary:
@@ -1080,11 +1080,11 @@ function noNewSignalAnswer(prevIntent: CopilotIntent, rawText: string): CopilotA
  * with no recognisable signal short-circuits to a short acknowledgment
  * instead of re-running the previous search (see `noNewSignalAnswer`).
  */
-export async function runCopilot(
+export async function runNestor(
   rawText: string,
-  prevIntent?: CopilotIntent,
+  prevIntent?: NestorIntent,
   topN = 3,
-): Promise<CopilotAnswer> {
+): Promise<NestorAnswer> {
   const { intent, refined, offTopic } = await deriveIntentAsync(rawText, prevIntent)
   if (offTopic && !prevIntent) return offTopicAnswer(rawText)
   if (prevIntent && !refined) return noNewSignalAnswer(prevIntent, rawText)
@@ -1095,12 +1095,12 @@ export async function runCopilot(
  * Re-rank an existing intent after the user edits its priorities in the UI —
  * no re-parsing, just a fresh ranking against the updated weights.
  */
-export function rerankIntent(intent: CopilotIntent, topN = 3): CopilotAnswer {
+export function rerankIntent(intent: NestorIntent, topN = 3): NestorAnswer {
   return answerFor(intent, true, topN)
 }
 
 /** Project an intent onto the subset of fields the Explore filters understand. */
-export function intentToFilters(intent: CopilotIntent): PropertyFilters {
+export function intentToFilters(intent: NestorIntent): PropertyFilters {
   const filters: PropertyFilters = {}
   if (intent.listingType) filters.listingType = intent.listingType
   if (intent.region) filters.region = intent.region

@@ -31,7 +31,7 @@ export interface ComparisonResult {
   runnerUpNotes: string[]
 }
 
-/** Reused by the Copilot's per-pick fit meter, not just this comparison. */
+/** Reused by Nestor's per-pick fit meter, not just this comparison. */
 export function lifestyleScore(p: Property): number {
   const { walkability, nightlifeScore, greenScore } = p.aiInsights
   return Math.round((walkability + nightlifeScore + greenScore) / 3)

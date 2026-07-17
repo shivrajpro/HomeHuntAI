@@ -2,7 +2,7 @@
 
 # 🏡 HomeHunt AI
 
-**Your AI home decision copilot for the Indian property market.**
+**Meet Nestor — your AI home decision partner for the Indian property market.**
 
 Describe your life, not filters — HomeHunt AI reads listings, neighborhoods and your
 priorities, then helps you decide with confidence instead of spreadsheets.
@@ -27,7 +27,7 @@ priorities, then helps you decide with confidence instead of spreadsheets.
 Property portals hand you filter dropdowns and a spreadsheet. HomeHunt AI is built on the
 opposite premise: **a home is a decision, not a query.**
 
-You tell the Copilot something like *"We're expecting our first baby and I work remotely —
+You tell Nestor something like *"We're expecting our first baby and I work remotely —
 need a peaceful 3 BHK to buy in Bangalore under ₹1.8 Cr"*, and it extracts a structured
 search intent, ranks homes by weighted **fit** against locality-level AI scores, and explains
 every pick — why it fits you, what you're trading off, what the confidence is grounded in,
@@ -45,7 +45,7 @@ across 2,000 listings.
 
 ## ✨ Key Features
 
-### 🤖 Decision Copilot (`/copilot`)
+### 🤖 Ask Nestor (`/nestor`)
 
 | Capability | What it does |
 | --- | --- |
@@ -65,8 +65,8 @@ across 2,000 listings.
 - **Property detail** (`/property/:id`) — image gallery, key specs, description + highlights, amenities, nearby landmarks, and a sticky sidebar with price, agent contact (`tel:`/`mailto:`) and neighborhood intel score bars.
 - **Compare** (`/compare`) — 2–3 homes side by side, scored across Budget, Commute, Investment Potential, Family Friendliness, Lifestyle Fit and Amenities, with a **"Best overall"** winner, reasoning paragraph and runner-up notes.
 - **Shortlist** (`/shortlist`) — heart any home; persisted to `localStorage` with a live count badge in the nav.
-- **Decision Report** (`/decision-report`) — a structured write-up of any Copilot answer: User Requirements, AI Understanding, Top Recommendation, Strengths, Trade-offs, Alternative Options, Final Recommendation.
-- **Copilot → Explore hand-off** — every answer maps its intent onto Explore's filters via URL query params.
+- **Decision Report** (`/decision-report`) — a structured write-up of any Nestor answer: User Requirements, AI Understanding, Top Recommendation, Strengths, Trade-offs, Alternative Options, Final Recommendation.
+- **Nestor → Explore hand-off** — every answer maps its intent onto Explore's filters via URL query params.
 
 ### 🎨 Experience
 
@@ -105,7 +105,7 @@ across 2,000 listings.
 │  Explore / Detail / Compare / Shortlist                      │
 │        └── TanStack Query ──► api.ts ──────────┐             │
 │                                                │             │
-│  Copilot                                       │             │
+│  Nestor                                        │             │
 │    1. isLikelyOutOfScope()  ── local gate ─────┤ (no network)│
 │    2. deriveIntentAsync()  ────────────┐       │             │
 │    3. rank + explain (reasoning.ts)    │       │             │
@@ -114,7 +114,7 @@ across 2,000 listings.
                                          │       │
                     ┌────────────────────▼──┐    │
                     │ Supabase Edge Function│    │
-                    │   `copilot-intent`    │    │
+                    │   `nestor-intent`     │    │
                     │  • rate limit (30/hr) │    │
                     │  • Gemini Flash       │────┼──► Google Gemini API
                     │  • JSON schema output │    │
@@ -123,7 +123,7 @@ across 2,000 listings.
                     ┌────────────────────────────▼─┐
                     │ Supabase Postgres            │
                     │  • properties (2,000 rows)   │
-                    │  • copilot_requests          │
+                    │  • nestor_requests           │
                     └──────────────────────────────┘
 ```
 
@@ -135,11 +135,11 @@ defensible answer, and nothing about a recommendation is hallucinated.
 Three layers of graceful degradation:
 
 1. **Local scope gate** — off-topic first messages never reach the network.
-2. **Local regex parser** — if the edge function or Gemini fails (outage, rate limit, network error), `deriveIntentAsync` silently falls back to `parseIntent`/`refineIntent`. A Gemini outage degrades quality, never breaks the Copilot.
-3. **Rate limiting** — 30 Gemini calls/hour per caller IP, logged in `copilot_requests`; the check itself fails open.
+2. **Local regex parser** — if the edge function or Gemini fails (outage, rate limit, network error), `deriveIntentAsync` silently falls back to `parseIntent`/`refineIntent`. A Gemini outage degrades quality, never breaks Nestor.
+3. **Rate limiting** — 30 Gemini calls/hour per caller IP, logged in `nestor_requests`; the check itself fails open.
 
 > [!IMPORTANT]
-> Explore, detail, compare and shortlist read **live Supabase data**. The Copilot's ranking
+> Explore, detail, compare and shortlist read **live Supabase data**. Nestor's ranking
 > engine (`reasoning.ts`) still ranks against the **bundled local seed** (`listings.json`) —
 > the same data, but a static snapshot and a second source of truth. Unifying this is on the
 > roadmap.
@@ -148,11 +148,11 @@ Three layers of graceful degradation:
 
 ## 🧠 AI Capabilities
 
-### Intent extraction — `supabase/functions/copilot-intent`
+### Intent extraction — `supabase/functions/nestor-intent`
 
 A Deno edge function calling **Gemini Flash** (`gemini-flash-lite-latest`) with a constrained
 `responseSchema`, `temperature: 0` and `maxOutputTokens: 512`, so output always matches the
-`CopilotIntent` shape the frontend expects.
+`NestorIntent` shape the frontend expects.
 
 It extracts: `listingType`, `region`, `maxPrice`, `minBhk`, `propertyType`,
 `excludedPropertyTypes`, `priorities` (ordered, most important first), `lifestyleTags`,
@@ -165,7 +165,7 @@ Notable inferences the prompt encodes:
 - **Life-stage → priorities** — nine mapped patterns (retiring, newly married, single professional, growing family, investor, expecting, multigenerational, remote/WFH, pet owner).
 - **Follow-up merge semantics** — explicit values override; relative nudges scale the budget; negations add exclusions; newly named priorities move to the front; everything unmentioned carries over.
 
-### Deterministic reasoning — `src/features/copilot/reasoning.ts`
+### Deterministic reasoning — `src/features/nestor/reasoning.ts`
 
 Ranking is a **weighted fit score** over seven locality dimensions carried on every listing
 (`walkability`, `familyScore`, `investmentScore`, `commuteScore`, `safetyScore`,
@@ -194,8 +194,8 @@ HomeHuntAI/
 │   ├── features/
 │   │   ├── home/
 │   │   │   └── home-page.tsx       # Marketing hero + feature cards
-│   │   ├── copilot/
-│   │   │   ├── copilot-page.tsx    # Chat UI, PickCard, priority editor
+│   │   ├── nestor/
+│   │   │   ├── nestor-page.tsx     # Chat UI, PickCard, priority editor
 │   │   │   ├── reasoning.ts        # ⭐ Intent + ranking + explanation engine
 │   │   │   ├── fit-meter.ts        # Per-pick 0–100 breakdown bars
 │   │   │   ├── decision-report.ts  # Structures an answer into a report
@@ -219,10 +219,11 @@ HomeHuntAI/
 │   │   └── utils.ts                # cn, formatINR, joinClauses
 │   └── styles/globals.css          # Tailwind v4 + design tokens
 ├── supabase/
-│   ├── functions/copilot-intent/   # ⭐ Deno + Gemini edge function
+│   ├── functions/nestor-intent/    # ⭐ Deno + Gemini edge function
 │   └── migrations/
 │       ├── 0001_create_properties.sql
-│       └── 0002_create_copilot_requests.sql
+│       ├── 0002_create_copilot_requests.sql
+│       └── 0003_rename_copilot_requests_to_nestor.sql
 ├── scripts/
 │   ├── generate-listings.mjs       # Deterministic seed generator
 │   └── migrate-to-supabase.mjs     # One-off seed → Postgres migration
@@ -240,8 +241,8 @@ HomeHuntAI/
 | `/property/:id` | Property detail |
 | `/compare` | Side-by-side comparison (`?ids=a,b,c`) |
 | `/shortlist` | Saved homes |
-| `/copilot` | Decision Copilot |
-| `/decision-report` | Structured report for a Copilot answer |
+| `/nestor` | Ask Nestor |
+| `/decision-report` | Structured report for a Nestor answer |
 | `*` | 404 |
 
 ---
@@ -250,9 +251,9 @@ HomeHuntAI/
 
 > _Replace the placeholders below with real captures._
 
-| Copilot | Explore |
+| Nestor | Explore |
 | --- | --- |
-| <img src="docs/screenshots/copilot.png" alt="Decision Copilot ranking homes with fit breakdowns" width="100%"> | <img src="docs/screenshots/explore.png" alt="Explore grid with filters" width="100%"> |
+| <img src="docs/screenshots/nestor.png" alt="Nestor ranking homes with fit breakdowns" width="100%"> | <img src="docs/screenshots/explore.png" alt="Explore grid with filters" width="100%"> |
 
 | Compare | Decision Report |
 | --- | --- |
@@ -303,10 +304,11 @@ The app throws on startup if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` are
 
 ### 1. Create the tables
 
-Run both migrations in the Supabase dashboard's **SQL Editor** (in order):
+Run all three migrations in the Supabase dashboard's **SQL Editor** (in order):
 
 1. `supabase/migrations/0001_create_properties.sql` — the `properties` table, filter indexes, RLS with a public read-only policy.
 2. `supabase/migrations/0002_create_copilot_requests.sql` — the rate-limit log (RLS enabled, no policies — only the edge function's service-role key touches it).
+3. `supabase/migrations/0003_rename_copilot_requests_to_nestor.sql` — renames that table to `nestor_requests`, following the rename of the assistant to Nestor. 0002 still creates the table under its old name because it was already applied to the live database; the rename is a forward migration rather than an edit to history.
 
 ### 2. Load the seed
 
@@ -356,20 +358,27 @@ npm run lint      # Oxlint
 
 ### Deploying the edge function
 
-The Copilot's Gemini parsing needs the `copilot-intent` function deployed:
+Nestor's Gemini parsing needs the `nestor-intent` function deployed:
 
 ```bash
 npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase secrets set GEMINI_API_KEY=<your-gemini-key>
-npx supabase functions deploy copilot-intent
+npx supabase functions deploy nestor-intent
+```
+
+This function was previously named `copilot-intent`. Renaming it in the repo does **not** rename
+the deployed function, so an existing project needs the new one deployed and the old one removed:
+
+```bash
+npx supabase functions delete copilot-intent
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-populated by the Edge Function
 runtime — no manual config needed. Dependencies resolve at deploy time via `npm:` specifiers,
 so there's no separate install step.
 
-> Without this, the Copilot still works — it falls back to the local regex parser.
+> Without this, Nestor still works — it falls back to the local regex parser.
 
 ### Tests
 
@@ -379,7 +388,7 @@ npx playwright test --ui         # Interactive mode
 npx playwright show-report       # Last HTML report
 ```
 
-Coverage spans every route, filters and search, the Copilot (including Gemini-outage and
+Coverage spans every route, filters and search, Nestor (including Gemini-outage and
 rate-limit fallback), compare, shortlist, theming, 404s, per-page SEO titles, and an automated
 **axe-core accessibility scan**. Projects: Chromium, Firefox, WebKit, iPad Mini, Pixel 5,
 iPhone 12. The config auto-starts the dev server.
@@ -415,21 +424,21 @@ correctly on refresh.
 | Integration | Purpose |
 | --- | --- |
 | **Supabase PostgREST** (`@supabase/supabase-js`) | All listing reads. Filters (`region`, `listing_type`, `property_type`, `bhk`, `price`) run server-side as query predicates; free-text search uses `.or()` + `ilike` across title, locality, sub-locality, city and project name. Rows are mapped snake_case → camelCase and validated through `propertySchema.parse` so bad data fails loudly. |
-| **Supabase Edge Functions** | Hosts `copilot-intent` (Deno). CORS-enabled, `POST { rawText, prevIntent }` → `{ intent, refined, offTopic }`. Input capped at 500 chars. |
+| **Supabase Edge Functions** | Hosts `nestor-intent` (Deno). CORS-enabled, `POST { rawText, prevIntent }` → `{ intent, refined, offTopic }`. Input capped at 500 chars. |
 | **Google Gemini** (`@google/genai`) | Natural-language intent extraction with a constrained JSON `responseSchema`. Server-side only — the API key never reaches the browser. |
 
-**Data flow for one Copilot turn:**
+**Data flow for one Nestor turn:**
 
 ```
 brief → isLikelyOutOfScope? ──yes──► redirect reply (no network)
              │no
              ▼
-   copilot-intent (rate limit → Gemini → JSON)
+   nestor-intent (rate limit → Gemini → JSON)
              │
         ok ──┴── fail ──► local regex parser (parseIntent / refineIntent)
              ▼
-   CopilotIntent → selectCandidates → fitScore → strengths
-                 → tradeoff → confidence → near-misses → CopilotAnswer
+   NestorIntent → selectCandidates → fitScore → strengths
+                 → tradeoff → confidence → near-misses → NestorAnswer
 ```
 
 ---
@@ -438,11 +447,11 @@ brief → isLikelyOutOfScope? ──yes──► redirect reply (no network)
 
 Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
 
-- **Performance** — the Copilot's ~5.1 MB listings chunk still loads in one shot on first visit to `/copilot`. Options: fetch the JSON as a static asset, or have the Copilot query Supabase directly.
-- **Unify the Copilot's data source** — retire the local seed snapshot so ranking reads live Supabase data, removing the second source of truth.
+- **Performance** — Nestor's ~5.1 MB listings chunk still loads in one shot on first visit to `/nestor`. Options: fetch the JSON as a static asset, or have Nestor query Supabase directly.
+- **Unify Nestor's data source** — retire the local seed snapshot so ranking reads live Supabase data, removing the second source of truth.
 - **Full Gemini reasoning** — let Gemini reason over candidate listings end-to-end, rather than parsing intent only.
 - **Supabase Storage** — real uploaded property imagery.
-- **Smaller polish** — a shortlist heart on the Copilot's pick cards; bulk-clearing the shortlist; a drawer if mobile nav outgrows 4 tabs.
+- **Smaller polish** — a shortlist heart on Nestor's pick cards; bulk-clearing the shortlist; a drawer if mobile nav outgrows 4 tabs.
 
 ---
 
@@ -451,7 +460,7 @@ Not yet implemented — tracked in [`project-stage.md`](project-stage.md):
 1. Fork and branch off `master` (`git checkout -b feature/your-feature`).
 2. Follow the existing structure — features live in `src/features/<domain>/`, shared UI in `src/components/ui/`.
 3. `src/features/properties/types.ts` is the **single source of truth**. Change the Zod schema first; types are inferred from it.
-4. Keep the Copilot's ranking **deterministic**. Gemini parses intent; it does not rank.
+4. Keep Nestor's ranking **deterministic**. Gemini parses intent; it does not rank.
 5. Before opening a PR:
 
    ```bash
