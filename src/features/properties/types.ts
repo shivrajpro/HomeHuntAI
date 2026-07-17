@@ -121,6 +121,27 @@ export type PropertyContact = z.infer<typeof contactSchema>
 export type PropertyNearby = z.infer<typeof nearbySchema>
 export type PropertyInsights = z.infer<typeof aiInsightsSchema>
 
+/**
+ * The only fields Nestor needs to filter, rank and explain a listing. Nestor
+ * has to scan the whole catalogue to rank it, and the fields it never reads —
+ * `description`, `nearby`, `images`, `amenities` — are ~60% of a listing's
+ * bytes, so it scans this projection instead and hydrates the handful of homes
+ * it actually shows. Picked from `propertySchema` so the two can't drift, and
+ * so a full `Property` is always a valid `PropertyRankingFields`.
+ */
+export const rankingFieldsSchema = propertySchema.pick({
+  id: true,
+  region: true,
+  propertyType: true,
+  listingType: true,
+  bhk: true,
+  price: true,
+  superBuiltupAreaSqft: true,
+  aiInsights: true,
+})
+
+export type PropertyRankingFields = z.infer<typeof rankingFieldsSchema>
+
 export interface PropertyFilters {
   /** Free-text match across title, locality, city, project, and tags. */
   search?: string
@@ -132,6 +153,8 @@ export interface PropertyFilters {
 }
 
 /** Price per square foot of super built-up area, rounded — derived, never stored. */
-export function pricePerSqft(property: Property): number {
+export function pricePerSqft(
+  property: Pick<Property, 'price' | 'superBuiltupAreaSqft'>,
+): number {
   return Math.round(property.price / property.superBuiltupAreaSqft)
 }

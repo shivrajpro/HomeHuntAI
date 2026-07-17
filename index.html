@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link
@@ -11,7 +11,7 @@
       name="description"
       content="HomeHunt AI — Nestor, your AI home decision partner. Find the home that fits your life."
     />
-    <meta name="theme-color" content="#0e0e12" />
+    <meta name="theme-color" content="#fcfcfd" />
     <title>HomeHunt AI</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -26,7 +26,7 @@
       try {
         var stored = localStorage.getItem('theme')
         var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-        var dark = stored ? stored === 'dark' : true // default dark
+        var dark = stored ? stored === 'dark' : false // default light
         if (stored === 'system') dark = systemDark
         document.documentElement.classList.toggle('dark', dark)
       } catch (_) {}

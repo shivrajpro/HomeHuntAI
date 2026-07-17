@@ -7,14 +7,14 @@ import { CompareProvider } from '@/features/properties/compare-context'
 import { ShortlistProvider } from '@/features/properties/shortlist-context'
 
 /**
- * Global app providers: theme (dark mode), data layer, compare selection,
+ * Global app providers: theme (light/dark), data layer, compare selection,
  * and the saved shortlist.
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
+      defaultTheme="light"
       enableSystem
       disableTransitionOnChange
     >

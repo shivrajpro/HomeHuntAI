@@ -70,7 +70,7 @@ across 2,000 listings.
 
 ### 🎨 Experience
 
-- Light/dark theming with no flash-of-wrong-theme (dark by default)
+- Light/dark theming with no flash-of-wrong-theme (light by default)
 - Mobile bottom tab bar + floating compare tray
 - Route-level code splitting (initial JS ~766 KB, down from ~6 MB)
 - Framer Motion transitions, accessible labels, verified by an automated axe-core scan

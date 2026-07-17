@@ -1,5 +1,12 @@
 import { supabase } from '@/lib/supabase'
-import { propertySchema, type Property, type PropertyFilters } from '@/features/properties/types'
+import {
+  propertySchema,
+  rankingFieldsSchema,
+  type ListingType,
+  type Property,
+  type PropertyFilters,
+  type PropertyRankingFields,
+} from '@/features/properties/types'
 
 /** Shape of a row from the `properties` table (see supabase/migrations/0001_create_properties.sql). */
 interface PropertyRow {
@@ -128,6 +135,80 @@ export async function fetchProperties(
   const { data, error } = await query
   if (error) throw error
   return (data ?? []).map(fromRow)
+}
+
+// --- Nestor's ranking projection -------------------------------------------
+
+/** Row shape of `RANKING_SELECT` — the `PropertyRow` fields Nestor ranks on. */
+type RankingRow = Pick<
+  PropertyRow,
+  | 'id'
+  | 'region'
+  | 'property_type'
+  | 'listing_type'
+  | 'bhk'
+  | 'price'
+  | 'super_builtup_area_sqft'
+  | 'ai_insights'
+>
+
+const RANKING_SELECT =
+  'id, region, property_type, listing_type, bhk, price, super_builtup_area_sqft, ai_insights'
+
+function fromRankingRow(row: RankingRow): PropertyRankingFields {
+  return rankingFieldsSchema.parse({
+    id: row.id,
+    region: row.region,
+    propertyType: row.property_type,
+    listingType: row.listing_type,
+    bhk: row.bhk,
+    price: row.price,
+    superBuiltupAreaSqft: row.super_builtup_area_sqft,
+    aiInsights: row.ai_insights,
+  })
+}
+
+/**
+ * PostgREST caps a single response at 1,000 rows regardless of what we ask
+ * for, so a scan of the whole catalogue has to page explicitly.
+ */
+const PAGE_SIZE = 1000
+
+/** How far Nestor can widen a query, so it can bound the pool server-side. */
+export interface RankingPoolBounds {
+  /** Nestor never relaxes listing type — a rental is never a near-miss for a purchase. */
+  listingType?: ListingType
+  /** Inclusive price ceiling, already widened to cover relaxation + near-misses. */
+  maxPrice?: number
+}
+
+/**
+ * Fetch the ranking projection for every listing within `bounds`. This is the
+ * pool Nestor filters, ranks and looks for near-misses in, so `bounds` must
+ * only carry constraints Nestor can never widen past — see `poolBounds` in
+ * `features/nestor/reasoning.ts`, which derives them.
+ */
+export async function fetchRankingFields(
+  bounds: RankingPoolBounds = {},
+): Promise<PropertyRankingFields[]> {
+  const rows: RankingRow[] = []
+
+  for (let page = 0; ; page++) {
+    let query = supabase.from('properties').select(RANKING_SELECT)
+    if (bounds.listingType) query = query.eq('listing_type', bounds.listingType)
+    if (bounds.maxPrice != null) query = query.lte('price', bounds.maxPrice)
+
+    // Ordered so pages partition the result set rather than overlapping it.
+    const { data, error } = await query
+      .order('id')
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    if (error) throw error
+
+    rows.push(...(data ?? []))
+    if ((data?.length ?? 0) < PAGE_SIZE) break
+  }
+
+  return rows.map(fromRankingRow)
 }
 
 /** Fetch a single listing by id, or `null` if it doesn't exist. */

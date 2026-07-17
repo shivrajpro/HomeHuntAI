@@ -4,14 +4,9 @@ import { createBrowserRouter } from 'react-router-dom'
 import { RootLayout } from '@/app/root-layout'
 import { NotFoundPage } from '@/app/not-found-page'
 
-// Route-level code splitting. In particular, Nestor pulls in
-// `reasoning.ts`, which still imports the local 2,000-listing seed
-// (`data/listings.json`, ~5.7MB uncompressed — the one bundle-size warning
-// `npm run build` reports, see project-stage.md's Phase 6). Statically
-// importing every route component here would put that whole payload on the
-// module graph for *every* page — home, explore, everything — not just
-// `/nestor`. Lazy-loading means it's only ever fetched when a user actually
-// opens Nestor.
+// Route-level code splitting: each page's JS is only fetched when a user
+// actually navigates to it, rather than every route riding on the initial
+// load.
 const HomePage = lazy(() =>
   import('@/features/home/home-page').then((m) => ({ default: m.HomePage })),
 )
