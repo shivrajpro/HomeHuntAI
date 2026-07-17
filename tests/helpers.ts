@@ -5,8 +5,8 @@ export async function waitForExploreLoaded(page: Page) {
   await expect(page.getByText('Loading listings…')).toHaveCount(0, { timeout: 15_000 })
 }
 
-/** Submit a Copilot brief and wait for the assistant's reply to land. */
-export async function submitCopilotBrief(page: Page, brief: string) {
+/** Submit a Nestor brief and wait for the assistant's reply to land. */
+export async function submitNestorBrief(page: Page, brief: string) {
   const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
   await textarea.fill(brief)
   await textarea.press('Enter')
@@ -27,7 +27,7 @@ export async function firstCardHref(page: Page): Promise<string | null> {
 /**
  * Chromium logs a "Failed to load resource: the server responded with a
  * status of ___" console error for every non-2xx HTTP response — including
- * ones the app already handles (e.g. the Copilot edge function's 429 rate
+ * ones the app already handles (e.g. the Nestor edge function's 429 rate
  * limit, which falls back to the local parser by design). That's expected
  * network noise, not an application bug, so console-error assertions should
  * ignore it and only fail on genuine JS/React errors.

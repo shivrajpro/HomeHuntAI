@@ -7,7 +7,7 @@ import {
 
 /**
  * Serialise/parse `PropertyFilters` to and from URL search params. Used for the
- * Copilot → Explore hand-off (and a stepping stone toward URL-synced filters).
+ * Nestor → Explore hand-off (and a stepping stone toward URL-synced filters).
  * Parsing validates enums against the Zod schemas, so stray or stale params are
  * ignored rather than trusted.
  */

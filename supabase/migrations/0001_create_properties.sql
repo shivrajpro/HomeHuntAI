@@ -48,7 +48,7 @@ create table if not exists public.properties (
   tags text[] not null default '{}'
 );
 
--- Indexes for the filters Explore/Copilot actually query on
+-- Indexes for the filters Explore/Nestor actually query on
 -- (see PropertyFilters in types.ts and matchesFilters in api.ts).
 create index if not exists properties_region_idx on public.properties (region);
 create index if not exists properties_listing_type_idx on public.properties (listing_type);

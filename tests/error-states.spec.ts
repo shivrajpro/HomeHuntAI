@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { submitCopilotBrief } from './helpers'
+import { submitNestorBrief } from './helpers'
 
 test.describe('Resilience — network failures', () => {
-  test('Copilot falls back to the local parser when the Gemini edge function is unreachable', async ({ page }) => {
-    await page.route('**/functions/v1/copilot-intent', (route) => route.abort('failed'))
+  test('Nestor falls back to the local parser when the Gemini edge function is unreachable', async ({ page }) => {
+    await page.route('**/functions/v1/nestor-intent', (route) => route.abort('failed'))
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
 
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
 
     // The deterministic downstream ranking still runs off the regex-parsed
     // intent, so picks should still appear even with Gemini fully down.
@@ -16,21 +16,21 @@ test.describe('Resilience — network failures', () => {
     expect(errors).toEqual([])
   })
 
-  test('Copilot degrades gracefully when the edge function returns an error response', async ({ page }) => {
-    await page.route('**/functions/v1/copilot-intent', (route) =>
+  test('Nestor degrades gracefully when the edge function returns an error response', async ({ page }) => {
+    await page.route('**/functions/v1/nestor-intent', (route) =>
       route.fulfill({ status: 500, body: JSON.stringify({ error: 'boom' }) }),
     )
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Young couple renting in Hyderabad, budget 45k.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Young couple renting in Hyderabad, budget 45k.')
     await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
   })
 
   test('a slow Gemini response still resolves and shows a thinking indicator meanwhile', async ({ page }) => {
-    await page.route('**/functions/v1/copilot-intent', async (route) => {
+    await page.route('**/functions/v1/nestor-intent', async (route) => {
       await new Promise((r) => setTimeout(r, 2000))
       await route.continue()
     })
-    await page.goto('/copilot')
+    await page.goto('/nestor')
     const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
     await textarea.fill('3 BHK to buy in Bangalore under 1 Cr')
     await textarea.press('Enter')

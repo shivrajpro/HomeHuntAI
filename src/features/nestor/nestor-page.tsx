@@ -20,24 +20,24 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScoreBar } from '@/components/ui/score-bar'
 import { filtersToParams } from '@/features/properties/filter-params'
-import { buildFitMeter } from '@/features/copilot/fit-meter'
+import { buildFitMeter } from '@/features/nestor/fit-meter'
 import {
   EXAMPLE_BRIEFS,
   intentToFilters,
   PRIORITY_OPTIONS,
   rerankIntent,
-  runCopilot,
-  type CopilotAnswer,
-  type CopilotIntent,
+  runNestor,
+  type NestorAnswer,
+  type NestorIntent,
   type PriorityDimension,
   type RankedPick,
   type RejectedPick,
-} from '@/features/copilot/reasoning'
+} from '@/features/nestor/reasoning'
 import { cn, formatINR } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/use-document-title'
 
 /**
- * The Copilot — a chat-style front end over `reasoning.ts`. The user
+ * Nestor — a chat-style front end over `reasoning.ts`. The user
  * describes what they want in plain language; intent parsing goes through
  * Gemini via a Supabase Edge Function (falling back to a local regex parser
  * if that's unavailable), then ranking and explanations stay deterministic,
@@ -49,7 +49,7 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
-  answer?: CopilotAnswer
+  answer?: NestorAnswer
 }
 
 /** Tailwind class for a fit badge — greener the better. */
@@ -66,7 +66,7 @@ function PickCard({
 }: {
   pick: RankedPick
   rank: number
-  intent: CopilotIntent
+  intent: NestorIntent
 }) {
   const { property, fit, strengths, tradeoff, confidenceBasis } = pick
   const isRent = property.listingType === 'Rent'
@@ -340,7 +340,7 @@ function RejectedSection({ rejected }: { rejected: RejectedPick[] }) {
 /**
  * The out-of-scope fallback — reuses `EmptyState`'s visual pattern (icon,
  * heading, secondary line, chip grid) but with copy that explains the
- * Copilot's scope, for when a brief was classified out-of-scope. Renders no
+ * Nestor's scope, for when a brief was classified out-of-scope. Renders no
  * property cards, per the classifier's contract.
  */
 function ScopeFallback({ onPick }: { onPick: (brief: string) => void }) {
@@ -348,8 +348,8 @@ function ScopeFallback({ onPick }: { onPick: (brief: string) => void }) {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <h2 className="text-sm font-semibold leading-relaxed tracking-tight">
-          I'm HomeHuntAI — a Home Decision Copilot focused on Bangalore,
-          Hyderabad, Greater Delhi Area, and Pune.
+          I'm Nestor — HomeHuntAI's home decision partner, focused on
+          Bangalore, Hyderabad, Greater Delhi Area, and Pune.
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           I help you discover real homes to buy or rent based on your city,
@@ -540,22 +540,22 @@ function EmptyState({ onPick }: { onPick: (brief: string) => void }) {
 let messageSeq = 0
 const nextId = () => `m${messageSeq++}`
 
-// Keep in sync with MAX_RAW_TEXT_LENGTH in supabase/functions/copilot-intent —
+// Keep in sync with MAX_RAW_TEXT_LENGTH in supabase/functions/nestor-intent —
 // this just surfaces that server-side cutoff in the UI instead of silently
 // truncating. MIN_QUERY_LENGTH blocks near-empty noise before it costs a
 // classification pass at all.
 const MIN_QUERY_LENGTH = 5
 const MAX_QUERY_LENGTH = 500
 
-export function CopilotPage() {
-  useDocumentTitle('Copilot · HomeHunt AI')
+export function NestorPage() {
+  useDocumentTitle('Ask Nestor · HomeHunt AI')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   // Structured conversation memory: the last turn's intent, carried forward so
   // follow-ups ("make it cheaper", "only Bangalore") refine instead of reset.
-  const lastIntentRef = useRef<CopilotIntent | undefined>(undefined)
+  const lastIntentRef = useRef<NestorIntent | undefined>(undefined)
 
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
@@ -573,7 +573,7 @@ export function CopilotPage() {
 
     // Intent parsing calls Gemini (via a Supabase Edge Function); ranking and
     // explanations stay local, so this only awaits the parsing step.
-    const answer = await runCopilot(text, lastIntentRef.current)
+    const answer = await runNestor(text, lastIntentRef.current)
     // Don't carry an off-topic turn's (empty) intent forward — doing so would
     // make the *next* message look like a follow-up to an established search
     // instead of a fresh first turn, silently disabling off-topic detection.

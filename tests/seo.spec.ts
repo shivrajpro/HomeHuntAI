@@ -5,7 +5,7 @@ test.describe('SEO metadata', () => {
   test('every top-level route has a distinct, descriptive document title', async ({ page }) => {
     const titles = new Map<string, string>()
 
-    for (const path of ['/', '/explore', '/copilot', '/shortlist', '/compare']) {
+    for (const path of ['/', '/explore', '/nestor', '/shortlist', '/compare']) {
       await page.goto(path)
       if (path === '/explore') await waitForExploreLoaded(page)
       // Routes are lazy-loaded (code-split) — wait for the chunk to mount and

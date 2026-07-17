@@ -1,17 +1,17 @@
 import { test, expect } from '@playwright/test'
-import { isBenignResourceLoadNoise, submitCopilotBrief } from './helpers'
+import { isBenignResourceLoadNoise, submitNestorBrief } from './helpers'
 
-test.describe('Copilot', () => {
+test.describe('Nestor', () => {
   test('empty state shows example briefs; picking one starts a conversation', async ({ page }) => {
-    await page.goto('/copilot')
+    await page.goto('/nestor')
     await expect(page.getByRole('heading', { name: /Tell me what home/i })).toBeVisible()
     const exampleChips = page.locator('button', { hasText: /BHK|budget/i })
     await expect(exampleChips.first()).toBeVisible()
   })
 
   test('a full brief returns ranked, explained picks', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(
+    await page.goto('/nestor')
+    await submitNestorBrief(
       page,
       'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr, safety and good schools matter most.',
     )
@@ -35,8 +35,8 @@ test.describe('Copilot', () => {
   })
 
   test('removing the only remaining priority chip is prevented', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
     await expect(page.getByText('Detected priorities')).toBeVisible({ timeout: 20_000 })
 
     const removeButtons = page.getByRole('button', { name: /^Remove / })
@@ -50,8 +50,8 @@ test.describe('Copilot', () => {
   })
 
   test('"View these in Explore" hands off filters via the URL', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Young couple renting in Hyderabad, budget 45k, want nightlife and easy commute.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Young couple renting in Hyderabad, budget 45k, want nightlife and easy commute.')
     await expect(page.getByRole('button', { name: /View these in Explore/i })).toBeVisible({ timeout: 20_000 })
     await page.getByRole('button', { name: /View these in Explore/i }).click()
     await expect(page).toHaveURL(/\/explore\?.*region=Hyderabad/)
@@ -59,8 +59,8 @@ test.describe('Copilot', () => {
   })
 
   test('"View Decision Report" renders a structured report', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Peaceful, green 3 BHK villa in Delhi NCR for my retired parents.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Peaceful, green 3 BHK villa in Delhi NCR for my retired parents.')
     await expect(page.getByRole('button', { name: /View Decision Report/i })).toBeVisible({ timeout: 20_000 })
     await page.getByRole('button', { name: /View Decision Report/i }).click()
     await expect(page).toHaveURL(/\/decision-report$/)
@@ -72,28 +72,28 @@ test.describe('Copilot', () => {
   test('visiting /decision-report directly (no state) shows the graceful fallback', async ({ page }) => {
     await page.goto('/decision-report')
     await expect(page.getByRole('heading', { name: /No report to show/i })).toBeVisible()
-    await page.getByRole('link', { name: /Go to Copilot/i }).click()
-    await expect(page).toHaveURL(/\/copilot$/)
+    await page.getByRole('link', { name: /Start with Nestor/i }).click()
+    await expect(page).toHaveURL(/\/nestor$/)
   })
 
   test('a follow-up refines the previous search ("Updated your search.")', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
     await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
 
-    await submitCopilotBrief(page, 'Actually make it cheaper')
+    await submitNestorBrief(page, 'Actually make it cheaper')
     await expect(page.getByText(/Updated your search/i)).toBeVisible({ timeout: 20_000 })
   })
 
   test('an off-topic first message gets the scope fallback, not a home search', async ({ page }) => {
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, "What's the capital of France and how's the weather there today?")
-    await expect(page.getByText(/Home Decision Copilot focused on/i)).toBeVisible({ timeout: 20_000 })
+    await page.goto('/nestor')
+    await submitNestorBrief(page, "What's the capital of France and how's the weather there today?")
+    await expect(page.getByText(/I'm Nestor — HomeHuntAI's home decision partner/i)).toBeVisible({ timeout: 20_000 })
     await expect(page.locator('article')).toHaveCount(0)
   })
 
   test('the Send button is disabled below the minimum length and enables once satisfied', async ({ page }) => {
-    await page.goto('/copilot')
+    await page.goto('/nestor')
     const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
     const send = page.getByRole('button', { name: 'Send' })
     await textarea.fill('hi')
@@ -104,7 +104,7 @@ test.describe('Copilot', () => {
   })
 
   test('rapid double-submit does not duplicate the user message', async ({ page }) => {
-    await page.goto('/copilot')
+    await page.goto('/nestor')
     const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
     const send = page.getByRole('button', { name: 'Send' })
     await textarea.fill('2 BHK apartment to rent in Bangalore under 40k')
@@ -118,7 +118,7 @@ test.describe('Copilot', () => {
   })
 
   test('keyboard: Enter submits, Shift+Enter inserts a newline', async ({ page }) => {
-    await page.goto('/copilot')
+    await page.goto('/nestor')
     const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
     await textarea.fill('3 BHK to buy in Bangalore')
     await textarea.press('Shift+Enter')
@@ -134,8 +134,8 @@ test.describe('Copilot', () => {
     page.on('console', (msg) => {
       if (msg.type() === 'error' && !isBenignResourceLoadNoise(msg.text())) errors.push(msg.text())
     })
-    await page.goto('/copilot')
-    await submitCopilotBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
+    await page.goto('/nestor')
+    await submitNestorBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
     await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
     expect(errors, `Console errors: ${errors.join('\n')}`).toEqual([])
   })

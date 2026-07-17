@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 const NAV_ITEMS = [
   { to: '/', label: 'Home', end: true, icon: Home },
   { to: '/explore', label: 'Explore', end: false, icon: Compass },
-  { to: '/copilot', label: 'Copilot', end: false, icon: Sparkles },
+  { to: '/nestor', label: 'Ask Nestor', end: false, icon: Sparkles },
   { to: '/shortlist', label: 'Shortlist', end: false, icon: Heart },
 ] as const
 

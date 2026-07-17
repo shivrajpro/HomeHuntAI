@@ -1,6 +1,6 @@
 import { lifestyleScore } from '@/features/properties/comparison'
 import type { Property } from '@/features/properties/types'
-import type { CopilotIntent } from '@/features/copilot/reasoning'
+import type { NestorIntent } from '@/features/nestor/reasoning'
 
 /**
  * The per-recommendation "visual fit meter" — Overall Fit % (already computed
@@ -31,7 +31,7 @@ function budgetFitScore(property: Property, maxPrice?: number): number {
 
 export function buildFitMeter(
   property: Property,
-  intent: CopilotIntent,
+  intent: NestorIntent,
 ): FitMeterBar[] {
   return [
     { key: 'budget', label: 'Budget', score: budgetFitScore(property, intent.maxPrice) },

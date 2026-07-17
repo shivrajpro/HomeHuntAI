@@ -9,7 +9,7 @@ const FEATURES = [
   {
     icon: ScanSearch,
     title: 'Smart matching',
-    body: 'Describe your life, not filters. The copilot ranks homes by how well they actually fit you.',
+    body: 'Describe your life, not filters. Nestor ranks homes by how well they actually fit you.',
   },
   {
     icon: MapPin,
@@ -18,7 +18,7 @@ const FEATURES = [
   },
   {
     icon: Sparkles,
-    title: 'Decision copilot',
+    title: 'Ask Nestor',
     body: 'Compare, stress-test trade-offs, and get a clear recommendation you can trust.',
   },
 ] as const
@@ -53,7 +53,7 @@ export function HomePage() {
             className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur"
           >
             <Sparkles className="size-3 text-primary" />
-            Your AI home decision copilot
+            Meet Nestor, your AI home decision partner
           </motion.span>
 
           <motion.h1
@@ -77,8 +77,8 @@ export function HomePage() {
             className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
           >
             <Button asChild size="lg">
-              <Link to="/copilot">
-                Start with the copilot
+              <Link to="/nestor">
+                Start with Nestor
                 <ArrowRight />
               </Link>
             </Button>

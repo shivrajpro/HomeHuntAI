@@ -57,7 +57,7 @@ const contactSchema = z.object({
 })
 
 /**
- * Locality-level AI scores (0–100) the copilot reasons over instead of raw
+ * Locality-level AI scores (0–100) Nestor reasons over instead of raw
  * specs — "walkable, family-friendly, strong investment" rather than a table.
  */
 const aiInsightsSchema = z.object({

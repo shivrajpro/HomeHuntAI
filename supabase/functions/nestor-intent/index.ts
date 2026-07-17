@@ -1,6 +1,6 @@
-// Supabase Edge Function: turns a free-text Copilot brief (plus, on a
+// Supabase Edge Function: turns a free-text Nestor brief (plus, on a
 // follow-up turn, the previous structured intent) into the same
-// `CopilotIntent` shape `src/features/copilot/reasoning.ts` used to produce
+// `NestorIntent` shape `src/features/nestor/reasoning.ts` used to produce
 // with regex parsing. Ranking and explanation text stay deterministic in the
 // frontend — this function only replaces the natural-language understanding
 // step, using Gemini Flash with a constrained JSON schema so the output
@@ -42,15 +42,15 @@ const MAX_RAW_TEXT_LENGTH = 500
 async function isRateLimited(clientKey: string): Promise<boolean> {
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString()
   const { count, error } = await supabaseAdmin
-    .from('copilot_requests')
+    .from('nestor_requests')
     .select('*', { count: 'exact', head: true })
     .eq('client_key', clientKey)
     .gte('created_at', since)
   // If the rate-limit check itself fails (e.g. table unreachable), fail open
-  // rather than breaking the Copilot over an unrelated infra hiccup.
+  // rather than breaking Nestor over an unrelated infra hiccup.
   if (error) return false
   if ((count ?? 0) >= RATE_LIMIT_MAX_REQUESTS) return true
-  await supabaseAdmin.from('copilot_requests').insert({ client_key: clientKey })
+  await supabaseAdmin.from('nestor_requests').insert({ client_key: clientKey })
   return false
 }
 
@@ -122,7 +122,7 @@ const RESPONSE_SCHEMA = {
   ],
 }
 
-const SYSTEM_PROMPT = `You are the natural-language understanding layer for HomeHuntAI, a home-search copilot for the Indian property market (Bangalore, Hyderabad, Delhi NCR, Pune). Extract a structured search intent from the user's message.
+const SYSTEM_PROMPT = `You are Nestor, the natural-language understanding layer for HomeHuntAI, a home-search product for the Indian property market (Bangalore, Hyderabad, Delhi NCR, Pune). Extract a structured search intent from the user's message.
 
 Fields:
 - listingType: "Buy" or "Rent". Infer from words (buy/purchase/own -> Buy; rent/renting/lease/tenant -> Rent) OR from the budget unit if no word is given: crore/lakh amounts imply Buy (it's a sale price), bare thousands ("45k") imply Rent (it's monthly rent). Use "unknown" if genuinely undetermined.
