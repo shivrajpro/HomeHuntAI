@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Link, NavLink, Outlet, ScrollRestoration } from 'react-router-dom'
 import { Compass, Heart, Home, Sparkles } from 'lucide-react'
 
@@ -61,6 +62,15 @@ function MobileNav() {
   )
 }
 
+/** Suspense fallback while a lazily-loaded route chunk is still being fetched. */
+function RouteLoading() {
+  return (
+    <div role="status" aria-label="Loading" className="grid min-h-[50vh] place-items-center">
+      <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+    </div>
+  )
+}
+
 export function RootLayout() {
   const { count } = useShortlist()
 
@@ -110,7 +120,9 @@ export function RootLayout() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-8 sm:px-6 sm:pb-8">
-        <Outlet />
+        <Suspense fallback={<RouteLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <MobileNav />

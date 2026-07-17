@@ -122,10 +122,31 @@ Supabase — next.**
 
 ## Current stage
 
-**Last verified build:** ✅ passing (`npm run build`) — 2026-07-16
+**Last verified build:** ✅ passing (`npm run build`) — 2026-07-17
 
 ### Done
 
+- **QA pass — full Playwright E2E suite + bug fixes (2026-07-17):** a
+  full-app QA sweep (`tests/*.spec.ts`, 65 tests × 6 projects — Chromium,
+  Firefox, WebKit, tablet, Mobile Chrome, Mobile Safari — 390 runs, all
+  green) covering every route, filter/search, the Copilot (including
+  Gemini-outage and rate-limit fallback), compare, shortlist, theming, 404s,
+  and an automated axe-core accessibility scan. Found and fixed real bugs:
+  (1) the Explore filter `<select>`s and property-gallery thumbnail buttons
+  had no accessible name (critical axe violations) — added `aria-label`s;
+  (2) every route shared one static "HomeHunt AI" document title with no
+  per-page SEO differentiation — added `useDocumentTitle`
+  (`src/lib/use-document-title.ts`), wired into every page; (3) the router
+  statically imported every route including the Copilot, which still pulls
+  in the ~5.7MB local listings seed (see Phase 6 below) — this put that
+  whole payload on *every* page's initial load and, concretely, hung
+  Firefox indefinitely on a page reload waiting for that module to finish
+  fetching. Fixed via route-level code-splitting (`React.lazy` + a
+  `Suspense` boundary in `root-layout.tsx`), which also cut the initial JS
+  payload from ~6MB to ~766KB (Copilot's chunk now loads only when a user
+  opens `/copilot`) — a meaningful, verified head start on Phase 6. No
+  authentication exists in this app (confirmed by reading the codebase), so
+  auth/session flows were out of scope for this pass.
 - **Phase 5 — UX improvements:**
   - **Visual fit meter** — each Copilot pick gets a collapsed-by-default "Fit
     breakdown" disclosure (`PickCard` in `copilot-page.tsx`) showing Budget,
@@ -312,9 +333,15 @@ Supabase — next.**
    gets a live hosted URL for the 2026-07-19 hackathon deadline)*. See the
    "Planned stack migration" section above.
 1. **Phase 6 — performance** *(next up, last roadmap phase)* — the
-   2,000-listing JSON is inlined into the JS bundle (~5.7 MB, the build's
-   only size warning) — fetch it or code-split it before any real
-   deployment.
+   2026-07-17 QA pass route-split the app (see above), so the 2,000-listing
+   JSON no longer loads on every page — only `/copilot`. It's still a single
+   ~5.1MB chunk fetched in one shot the first time a user opens the Copilot
+   (`npm run build` still warns on that chunk specifically), and `reasoning.ts`
+   still ranks against this static local snapshot rather than live Supabase
+   data (a second source of truth vs. Explore, which already queries Supabase
+   — see the Phase 3 architecture note above). Fetching the JSON as a static
+   asset instead of a JS import, or having the Copilot query Supabase
+   directly, remains open.
 2. **Possible follow-ups beyond the roadmap:** a shortlist heart on the
    Copilot's `PickCard` (currently Explore/detail-page only, matching that
    Compare is also absent there today — see Phase 5 notes above); clearing

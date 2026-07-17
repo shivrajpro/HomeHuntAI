@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 export function NotFoundPage() {
+  useDocumentTitle('Page not found · HomeHunt AI')
   return (
     <div className="grid min-h-[60vh] place-items-center text-center">
       <div className="space-y-4">

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { PropertyCard } from '@/features/properties/components/property-card'
 import { usePropertiesByIds } from '@/features/properties/queries'
 import { useShortlist } from '@/features/properties/shortlist-context'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 /** Placeholder cards while shortlisted listings load. */
 function LoadingGrid() {
@@ -39,6 +40,7 @@ function EmptyState() {
 }
 
 export function ShortlistPage() {
+  useDocumentTitle('Your shortlist · HomeHunt AI')
   const { ids } = useShortlist()
   const { data: properties, isLoading } = usePropertiesByIds(ids)
 

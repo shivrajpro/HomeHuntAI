@@ -7,6 +7,7 @@ import { FilterBar } from '@/features/properties/components/filter-bar'
 import { PropertyCard } from '@/features/properties/components/property-card'
 import { useProperties } from '@/features/properties/queries'
 import type { PropertyFilters } from '@/features/properties/types'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 /** Cards rendered per "page" — keeps the DOM light with 2,000 seed listings. */
 const PAGE_SIZE = 24
@@ -50,6 +51,7 @@ function EmptyState() {
 }
 
 export function ExplorePage() {
+  useDocumentTitle('Explore homes · HomeHunt AI')
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const { data: properties, isLoading, isError } = useProperties(filters)

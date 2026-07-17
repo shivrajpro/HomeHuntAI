@@ -1,0 +1,142 @@
+import { test, expect } from '@playwright/test'
+import { isBenignResourceLoadNoise, submitCopilotBrief } from './helpers'
+
+test.describe('Copilot', () => {
+  test('empty state shows example briefs; picking one starts a conversation', async ({ page }) => {
+    await page.goto('/copilot')
+    await expect(page.getByRole('heading', { name: /Tell me what home/i })).toBeVisible()
+    const exampleChips = page.locator('button', { hasText: /BHK|budget/i })
+    await expect(exampleChips.first()).toBeVisible()
+  })
+
+  test('a full brief returns ranked, explained picks', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(
+      page,
+      'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr, safety and good schools matter most.',
+    )
+
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+    const picks = page.getByText(/% fit/)
+    const count = await picks.count()
+    expect(count).toBeGreaterThan(0)
+    expect(count).toBeLessThanOrEqual(3)
+
+    // Each pick explains itself: strengths, a trade-off, and a confidence line.
+    await expect(page.locator('svg.lucide-scale').first()).toBeVisible()
+    await expect(page.locator('svg.lucide-shield-check').first()).toBeVisible()
+
+    // Detected priorities are shown as editable chips.
+    await expect(page.getByText('Detected priorities')).toBeVisible()
+
+    // Hand-off actions are present.
+    await expect(page.getByRole('button', { name: /View these in Explore/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /View Decision Report/i })).toBeVisible()
+  })
+
+  test('removing the only remaining priority chip is prevented', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
+    await expect(page.getByText('Detected priorities')).toBeVisible({ timeout: 20_000 })
+
+    const removeButtons = page.getByRole('button', { name: /^Remove / })
+    let remaining = await removeButtons.count()
+    while (remaining > 1) {
+      await removeButtons.first().click()
+      await page.waitForTimeout(150)
+      remaining = await removeButtons.count()
+    }
+    await expect(removeButtons.first()).toBeDisabled()
+  })
+
+  test('"View these in Explore" hands off filters via the URL', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, 'Young couple renting in Hyderabad, budget 45k, want nightlife and easy commute.')
+    await expect(page.getByRole('button', { name: /View these in Explore/i })).toBeVisible({ timeout: 20_000 })
+    await page.getByRole('button', { name: /View these in Explore/i }).click()
+    await expect(page).toHaveURL(/\/explore\?.*region=Hyderabad/)
+    await expect(page).toHaveURL(/listingType=Rent/)
+  })
+
+  test('"View Decision Report" renders a structured report', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, 'Peaceful, green 3 BHK villa in Delhi NCR for my retired parents.')
+    await expect(page.getByRole('button', { name: /View Decision Report/i })).toBeVisible({ timeout: 20_000 })
+    await page.getByRole('button', { name: /View Decision Report/i }).click()
+    await expect(page).toHaveURL(/\/decision-report$/)
+    await expect(page.getByRole('heading', { name: /Your home decision, summarised/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'User Requirements' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Top Recommendation' })).toBeVisible()
+  })
+
+  test('visiting /decision-report directly (no state) shows the graceful fallback', async ({ page }) => {
+    await page.goto('/decision-report')
+    await expect(page.getByRole('heading', { name: /No report to show/i })).toBeVisible()
+    await page.getByRole('link', { name: /Go to Copilot/i }).click()
+    await expect(page).toHaveURL(/\/copilot$/)
+  })
+
+  test('a follow-up refines the previous search ("Updated your search.")', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+
+    await submitCopilotBrief(page, 'Actually make it cheaper')
+    await expect(page.getByText(/Updated your search/i)).toBeVisible({ timeout: 20_000 })
+  })
+
+  test('an off-topic first message gets the scope fallback, not a home search', async ({ page }) => {
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, "What's the capital of France and how's the weather there today?")
+    await expect(page.getByText(/Home Decision Copilot focused on/i)).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('article')).toHaveCount(0)
+  })
+
+  test('the Send button is disabled below the minimum length and enables once satisfied', async ({ page }) => {
+    await page.goto('/copilot')
+    const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
+    const send = page.getByRole('button', { name: 'Send' })
+    await textarea.fill('hi')
+    await expect(send).toBeDisabled()
+    await expect(page.getByText(/at least 5 characters/i)).toBeVisible()
+    await textarea.fill('hi there, a real brief')
+    await expect(send).toBeEnabled()
+  })
+
+  test('rapid double-submit does not duplicate the user message', async ({ page }) => {
+    await page.goto('/copilot')
+    const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
+    const send = page.getByRole('button', { name: 'Send' })
+    await textarea.fill('2 BHK apartment to rent in Bangalore under 40k')
+    await send.click()
+    await send.click({ force: true }).catch(() => {})
+    await page.waitForTimeout(300)
+    // While "thinking" the input is cleared and disabled, so a second click
+    // should not enqueue a second identical user bubble.
+    const userBubbles = page.locator('p', { hasText: '2 BHK apartment to rent in Bangalore under 40k' })
+    await expect(userBubbles).toHaveCount(1)
+  })
+
+  test('keyboard: Enter submits, Shift+Enter inserts a newline', async ({ page }) => {
+    await page.goto('/copilot')
+    const textarea = page.getByPlaceholder(/BHK to buy in Bangalore/)
+    await textarea.fill('3 BHK to buy in Bangalore')
+    await textarea.press('Shift+Enter')
+    await textarea.pressSequentially('under 1 Cr')
+    await expect(textarea).toHaveValue(/\n/)
+    await textarea.press('Enter')
+    await expect(page.locator('p', { hasText: '3 BHK to buy in Bangalore' })).toBeVisible({ timeout: 3_000 })
+  })
+
+  test('has no console errors across a full conversation', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' && !isBenignResourceLoadNoise(msg.text())) errors.push(msg.text())
+    })
+    await page.goto('/copilot')
+    await submitCopilotBrief(page, 'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr.')
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+    expect(errors, `Console errors: ${errors.join('\n')}`).toEqual([])
+  })
+})

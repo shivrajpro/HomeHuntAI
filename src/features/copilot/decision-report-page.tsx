@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { buildDecisionReport } from '@/features/copilot/decision-report'
 import type { CopilotAnswer } from '@/features/copilot/reasoning'
 import { formatINR } from '@/lib/utils'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 interface LocationState {
   answer?: CopilotAnswer
@@ -41,6 +42,7 @@ function Section({
 }
 
 export function DecisionReportPage() {
+  useDocumentTitle('Decision Report · HomeHunt AI')
   const location = useLocation()
   const state = location.state as LocationState | null
 
