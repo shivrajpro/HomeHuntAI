@@ -3,6 +3,7 @@ import { motion, type Variants } from 'framer-motion'
 import { ArrowRight, MapPin, ScanSearch, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 const FEATURES = [
   {
@@ -32,6 +33,7 @@ const item: Variants = {
 }
 
 export function HomePage() {
+  useDocumentTitle('HomeHunt AI — Find the home that fits your life')
   return (
     <div className="space-y-16">
       <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card px-6 py-16 shadow-elevated sm:px-12 sm:py-24">

@@ -26,6 +26,7 @@ import { useCompare } from '@/features/properties/compare-context'
 import { useShortlist } from '@/features/properties/shortlist-context'
 import { useProperty } from '@/features/properties/queries'
 import { pricePerSqft, type Property } from '@/features/properties/types'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 const INSIGHT_LABELS: Record<keyof Property['aiInsights'], string> = {
   walkability: 'Walkability',
@@ -87,6 +88,8 @@ function Gallery({ property }: { property: Property }) {
               key={src}
               type="button"
               onClick={() => setActive(i)}
+              aria-label={`View photo ${i + 1} of ${property.images.length}`}
+              aria-pressed={i === active}
               className={cn(
                 'aspect-4/3 overflow-hidden rounded-lg border-2 transition-colors',
                 i === active ? 'border-primary' : 'border-transparent opacity-70 hover:opacity-100',
@@ -121,6 +124,14 @@ export function PropertyDetailPage() {
   const { data: property, isLoading, isError } = useProperty(id)
   const { isSelected, toggle, canAddMore } = useCompare()
   const { isSaved, toggle: toggleShortlist } = useShortlist()
+
+  useDocumentTitle(
+    property
+      ? `${property.title} · HomeHunt AI`
+      : isLoading
+        ? 'HomeHunt AI'
+        : 'Listing not found · HomeHunt AI',
+  )
 
   if (isLoading) return <DetailSkeleton />
 

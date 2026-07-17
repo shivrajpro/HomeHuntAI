@@ -8,6 +8,7 @@ import { MAX_COMPARE, useCompare } from '@/features/properties/compare-context'
 import { buildComparison, type ComparisonRow } from '@/features/properties/comparison'
 import { usePropertiesByIds } from '@/features/properties/queries'
 import type { Property } from '@/features/properties/types'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 /** Read + dedupe `?ids=a,b,c` from the URL, capped at the compare limit. */
 function parseIds(params: URLSearchParams): string[] {
@@ -141,6 +142,7 @@ function ComparisonRowView({ row, count }: { row: ComparisonRow; count: number }
 }
 
 export function ComparePage() {
+  useDocumentTitle('Compare homes · HomeHunt AI')
   const [searchParams, setSearchParams] = useSearchParams()
   const ids = parseIds(searchParams)
   const { data: properties, isLoading } = usePropertiesByIds(ids)

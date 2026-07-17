@@ -34,6 +34,7 @@ import {
   type RejectedPick,
 } from '@/features/copilot/reasoning'
 import { cn, formatINR } from '@/lib/utils'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 /**
  * The Copilot — a chat-style front end over `reasoning.ts`. The user
@@ -547,6 +548,7 @@ const MIN_QUERY_LENGTH = 5
 const MAX_QUERY_LENGTH = 500
 
 export function CopilotPage() {
+  useDocumentTitle('Copilot · HomeHunt AI')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)

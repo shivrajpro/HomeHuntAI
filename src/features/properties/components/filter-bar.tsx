@@ -144,19 +144,20 @@ export function FilterBar({
           <input
             {...register('search')}
             type="text"
+            aria-label="Search locality, project, or vibe"
             placeholder="Search locality, project, or vibe…"
             className={cn(selectClass, 'w-full pl-9')}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap">
-          <select {...register('listingType')} className={selectClass}>
+          <select {...register('listingType')} aria-label="Buy or Rent" className={selectClass}>
             <option value="">Buy / Rent</option>
             <option value="Buy">Buy</option>
             <option value="Rent">Rent</option>
           </select>
 
-          <select {...register('region')} className={selectClass}>
+          <select {...register('region')} aria-label="City" className={selectClass}>
             <option value="">Any city</option>
             {REGIONS.map((r) => (
               <option key={r} value={r}>
@@ -165,7 +166,7 @@ export function FilterBar({
             ))}
           </select>
 
-          <select {...register('propertyType')} className={selectClass}>
+          <select {...register('propertyType')} aria-label="Property type" className={selectClass}>
             <option value="">Any type</option>
             {PROPERTY_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -174,7 +175,7 @@ export function FilterBar({
             ))}
           </select>
 
-          <select {...register('minBhk')} className={selectClass}>
+          <select {...register('minBhk')} aria-label="Minimum BHK" className={selectClass}>
             <option value="">Any BHK</option>
             {bhkOptions.map((b) => (
               <option key={b} value={b}>
@@ -183,7 +184,7 @@ export function FilterBar({
             ))}
           </select>
 
-          <select {...register('maxPrice')} className={selectClass}>
+          <select {...register('maxPrice')} aria-label="Maximum price" className={selectClass}>
             <option value="">Max price</option>
             {priceOptions.map((p) => (
               <option key={p.value} value={p.value}>
