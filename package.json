@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "playwright test",
+    "test:all": "cross-env ALL_BROWSERS=1 playwright test",
+    "test:ui": "playwright test --ui",
     "seed": "node scripts/generate-listings.mjs src/features/properties/data/listings.json",
     "migrate:supabase": "node --env-file=.env scripts/migrate-to-supabase.mjs"
   },
@@ -38,6 +41,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "cross-env": "^10.1.0",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"

@@ -586,20 +586,24 @@ export function NestorPage() {
   }
 
   // Re-rank a past answer after its priority chips are edited, in place.
-  function editPriorities(messageId: string, priorities: PriorityDimension[]) {
-    setMessages((prev) => {
-      const target = prev.find((m) => m.id === messageId)
-      if (!target?.answer) return prev
-      const answer = rerankIntent({
-        ...target.answer.intent,
-        priorities,
-        usedDefaultPriorities: false,
-      })
-      lastIntentRef.current = answer.intent
-      return prev.map((m) =>
-        m.id === messageId ? { ...m, text: answer.summary, answer } : m,
-      )
+  async function editPriorities(
+    messageId: string,
+    priorities: PriorityDimension[],
+  ) {
+    const target = messages.find((m) => m.id === messageId)
+    if (!target?.answer) return
+
+    const answer = await rerankIntent({
+      ...target.answer.intent,
+      priorities,
+      usedDefaultPriorities: false,
     })
+    lastIntentRef.current = answer.intent
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, text: answer.summary, answer } : m,
+      ),
+    )
   }
 
   function onSubmit(e: React.FormEvent) {

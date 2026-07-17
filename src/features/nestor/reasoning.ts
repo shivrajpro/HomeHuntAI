@@ -1,4 +1,5 @@
-import { LISTINGS } from '@/features/properties/data/listings'
+import { fetchPropertiesByIds, type RankingPoolBounds } from '@/features/properties/api'
+import { fetchRankingPool } from '@/features/properties/queries'
 import { supabase } from '@/lib/supabase'
 import {
   pricePerSqft,
@@ -6,6 +7,7 @@ import {
   type Property,
   type PropertyFilters,
   type PropertyInsights,
+  type PropertyRankingFields,
   type PropertyType,
   type Region,
 } from '@/features/properties/types'
@@ -23,6 +25,13 @@ import { formatINR, joinClauses } from '@/lib/utils'
  * strengths/trade-off/confidence text, near-misses) stays fully
  * deterministic, so the same intent always yields the same, defensible
  * answer.
+ *
+ * Listings come from Supabase in two stages (see `answerFor`): ranking scans
+ * a slim projection of the catalogue (`PropertyRankingFields`), then only the
+ * few homes actually shown are hydrated into full `Property` objects. Ranking
+ * itself still happens here rather than in SQL — fit is a weighted blend of
+ * seven locality scores against a per-user priority order, and the near-miss
+ * pass needs the homes the filters *rejected*.
  */
 
 /** The locality-score dimensions we rank on, with display labels + trigger words. */
@@ -682,7 +691,7 @@ export async function deriveIntentAsync(
 
 // --- Candidate selection + ranking -----------------------------------------
 
-function matches(p: Property, intent: NestorIntent): boolean {
+function matches(p: PropertyRankingFields, intent: NestorIntent): boolean {
   if (intent.listingType && p.listingType !== intent.listingType) return false
   if (intent.region && p.region !== intent.region) return false
   if (intent.maxPrice != null && p.price > intent.maxPrice) return false
@@ -693,9 +702,15 @@ function matches(p: Property, intent: NestorIntent): boolean {
   return true
 }
 
+/** How much the budget relaxation widens the ceiling when matches are thin. */
+const BUDGET_RELAX_FACTOR = 1.25
+
 /** Loosen filters — cheapest constraint first — until we have enough homes. */
-function selectCandidates(intent: NestorIntent): {
-  list: Property[]
+function selectCandidates(
+  intent: NestorIntent,
+  pool: PropertyRankingFields[],
+): {
+  list: PropertyRankingFields[]
   relaxed: string[]
 } {
   const relaxations: { label: string; apply: (i: NestorIntent) => NestorIntent }[] =
@@ -706,14 +721,17 @@ function selectCandidates(intent: NestorIntent): {
         label: 'budget',
         apply: (i) => ({
           ...i,
-          maxPrice: i.maxPrice != null ? Math.round(i.maxPrice * 1.25) : undefined,
+          maxPrice:
+            i.maxPrice != null
+              ? Math.round(i.maxPrice * BUDGET_RELAX_FACTOR)
+              : undefined,
         }),
       },
       { label: 'city', apply: (i) => ({ ...i, region: undefined }) },
     ]
 
   let current = intent
-  let list = LISTINGS.filter((p) => matches(p, current))
+  let list = pool.filter((p) => matches(p, current))
   const relaxed: string[] = []
 
   for (const r of relaxations) {
@@ -729,14 +747,14 @@ function selectCandidates(intent: NestorIntent): {
       continue
     }
     current = next
-    list = LISTINGS.filter((p) => matches(p, current))
+    list = pool.filter((p) => matches(p, current))
     relaxed.push(r.label)
   }
 
   return { list, relaxed }
 }
 
-function fitScore(p: Property, priorities: Dimension[]): number {
+function fitScore(p: PropertyRankingFields, priorities: Dimension[]): number {
   const n = priorities.length
   let weighted = 0
   let total = 0
@@ -793,7 +811,10 @@ const DECENT = 65
  * prioritised (why it fits *them*), then top up with the home's own standout
  * traits if that's thin — always qualitative, never a raw score.
  */
-function buildStrengths(p: Property, priorities: Dimension[]): string[] {
+function buildStrengths(
+  p: PropertyRankingFields,
+  priorities: Dimension[],
+): string[] {
   const out: string[] = []
   const used = new Set<Dimension>()
 
@@ -833,7 +854,7 @@ function buildStrengths(p: Property, priorities: Dimension[]): string[] {
  * to infer, filters we had to widen) so the percentage is never a bare number.
  */
 function buildConfidenceBasis(
-  p: Property,
+  p: PropertyRankingFields,
   intent: NestorIntent,
   relaxed: string[],
 ): string {
@@ -862,7 +883,7 @@ function buildConfidenceBasis(
  * readable reasons. Listing type is deliberately excluded — a rental is never a
  * near-miss for a purchase — so this only covers budget, city, BHK and type.
  */
-function describeFails(p: Property, intent: NestorIntent): string[] {
+function describeFails(p: PropertyRankingFields, intent: NestorIntent): string[] {
   const fails: string[] = []
   if (intent.maxPrice != null && p.price > intent.maxPrice) {
     fails.push(`${formatINR(p.price - intent.maxPrice)} over your budget`)
@@ -892,9 +913,11 @@ const NEAR_BUDGET_CEILING = 1.3
 
 function findNearMisses(
   intent: NestorIntent,
+  pool: PropertyRankingFields[],
   excludeIds: Set<string>,
-): RejectedPick[] {
-  return LISTINGS.filter((p) => !excludeIds.has(p.id))
+): { property: PropertyRankingFields; fit: number; reason: string }[] {
+  return pool
+    .filter((p) => !excludeIds.has(p.id))
     .filter((p) => !intent.listingType || p.listingType === intent.listingType)
     // A home 3× the budget isn't a near-miss — only flag a modest overage.
     .filter(
@@ -917,7 +940,7 @@ function findNearMisses(
     .map(({ property, fit, fails }) => ({ property, fit, reason: fails[0] }))
 }
 
-function buildTradeoff(p: Property, intent: NestorIntent): string {
+function buildTradeoff(p: PropertyRankingFields, intent: NestorIntent): string {
   const weakest = ALL_DIMENSIONS.map((dim) => ({
     label: DIMENSION_META[dim].label,
     score: p.aiInsights[dim],
@@ -975,21 +998,40 @@ function buildSummary(
   return opener
 }
 
-/** Rank + explain the seed listings for an already-resolved intent. */
-function answerFor(
+/**
+ * The constraints the ranking pool can safely be narrowed by server-side —
+ * everything Nestor can never widen past on its way to an answer. Listing type
+ * qualifies because no relaxation touches it and a near-miss must share it. The
+ * price ceiling is the loosest either path can reach: `selectCandidates` widens
+ * the budget by at most `BUDGET_RELAX_FACTOR` (once, and only when matches are
+ * thin), and `findNearMisses` looks no further than `NEAR_BUDGET_CEILING`.
+ * Region, BHK and property type are all relaxable, so they stay client-side.
+ */
+function poolBounds(intent: NestorIntent): RankingPoolBounds {
+  const ceiling = Math.max(BUDGET_RELAX_FACTOR, NEAR_BUDGET_CEILING)
+  return {
+    listingType: intent.listingType,
+    maxPrice:
+      intent.maxPrice != null ? Math.ceil(intent.maxPrice * ceiling) : undefined,
+  }
+}
+
+/** Rank + explain the catalogue for an already-resolved intent. */
+async function answerFor(
   rawIntent: NestorIntent,
   refined: boolean,
   topN: number,
-): NestorAnswer {
+): Promise<NestorAnswer> {
   // An empty priority list would divide by zero in `fitScore`; fall back to the
   // balanced default (can happen if the user removes every priority chip).
   const intent: NestorIntent = rawIntent.priorities.length
     ? rawIntent
     : { ...rawIntent, priorities: DEFAULT_PRIORITIES, usedDefaultPriorities: true }
 
-  const { list, relaxed } = selectCandidates(intent)
+  const pool = await fetchRankingPool(poolBounds(intent))
+  const { list, relaxed } = selectCandidates(intent, pool)
 
-  const picks: RankedPick[] = list
+  const ranked = list
     .map((property) => ({
       property,
       fit: fitScore(property, intent.priorities),
@@ -1000,25 +1042,52 @@ function answerFor(
       return pricePerSqft(a.property) - pricePerSqft(b.property)
     })
     .slice(0, topN)
-    .map(({ property, fit }) => ({
-      property,
-      fit,
-      strengths: buildStrengths(property, intent.priorities),
-      tradeoff: buildTradeoff(property, intent),
-      confidenceBasis: buildConfidenceBasis(property, intent, relaxed),
-    }))
 
-  const pickIds = new Set(picks.map((pick) => pick.property.id))
+  const pickIds = new Set(ranked.map((pick) => pick.property.id))
+  const nearMisses = findNearMisses(intent, pool, pickIds)
+
+  // Only the homes we're about to show need their full detail — images, title,
+  // locality. One round trip covers both the picks and the near-misses.
+  const hydrated = await hydrate([
+    ...ranked.map((r) => r.property.id),
+    ...nearMisses.map((r) => r.property.id),
+  ])
+
+  const picks: RankedPick[] = ranked.flatMap(({ property, fit }) => {
+    const full = hydrated.get(property.id)
+    if (!full) return []
+    return [
+      {
+        property: full,
+        fit,
+        strengths: buildStrengths(full, intent.priorities),
+        tradeoff: buildTradeoff(full, intent),
+        confidenceBasis: buildConfidenceBasis(full, intent, relaxed),
+      },
+    ]
+  })
+
+  const rejected: RejectedPick[] = nearMisses.flatMap(({ property, fit, reason }) => {
+    const full = hydrated.get(property.id)
+    return full ? [{ property: full, fit, reason }] : []
+  })
 
   return {
     intent,
     summary: buildSummary(intent, relaxed, refined),
     picks,
-    rejected: findNearMisses(intent, pickIds),
+    rejected,
     totalMatched: list.length,
     refined,
     relaxedNote: relaxed.length ? relaxed.join(', ') : undefined,
   }
+}
+
+/** Full listings for the ids we're about to render, keyed by id. */
+async function hydrate(ids: string[]): Promise<Map<string, Property>> {
+  if (ids.length === 0) return new Map()
+  const full = await fetchPropertiesByIds(ids)
+  return new Map(full.map((p) => [p.id, p]))
 }
 
 /**
@@ -1093,9 +1162,15 @@ export async function runNestor(
 
 /**
  * Re-rank an existing intent after the user edits its priorities in the UI —
- * no re-parsing, just a fresh ranking against the updated weights.
+ * no re-parsing, just a fresh ranking against the updated weights. Async only
+ * because the listings come from Supabase; the priority edit itself doesn't
+ * change the intent's filters, so the ranking pool is the same query the
+ * original turn already ran.
  */
-export function rerankIntent(intent: NestorIntent, topN = 3): NestorAnswer {
+export function rerankIntent(
+  intent: NestorIntent,
+  topN = 3,
+): Promise<NestorAnswer> {
   return answerFor(intent, true, topN)
 }
 
