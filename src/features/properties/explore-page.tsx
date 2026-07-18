@@ -9,8 +9,13 @@ import { useProperties } from '@/features/properties/queries'
 import type { PropertyFilters } from '@/features/properties/types'
 import { useDocumentTitle } from '@/lib/use-document-title'
 
-/** Cards rendered per "page" — keeps the DOM light with 2,000 seed listings. */
-const PAGE_SIZE = 24
+/**
+ * Rows fetched for the first page — small so the initial Explore load stays
+ * fast rather than pulling the whole catalogue up front.
+ */
+const INITIAL_LIMIT = 36
+/** Extra rows fetched each time the visitor asks for more. */
+const LOAD_MORE_STEP = 24
 
 /** Placeholder cards while the (mock) request is in flight. */
 function LoadingGrid() {
@@ -53,16 +58,20 @@ function EmptyState() {
 export function ExplorePage() {
   useDocumentTitle('Explore homes · HomeHunt AI')
   const [filters, setFilters] = useState<PropertyFilters>({})
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const { data: properties, isLoading, isError } = useProperties(filters)
+  const [limit, setLimit] = useState(INITIAL_LIMIT)
+  const { data, isLoading, isError } = useProperties(filters, limit)
 
-  // Reset paging whenever the result set changes so a new search starts at top.
+  // Reset paging whenever the filters change so a new search starts small.
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE)
+    setLimit(INITIAL_LIMIT)
   }, [filters])
 
-  const visible = properties?.slice(0, visibleCount) ?? []
-  const hasMore = properties ? visibleCount < properties.length : false
+  const properties = data?.properties
+  const total = data?.total ?? 0
+  const hasMore = properties ? properties.length < total : false
+  // The result count is only meaningful once the visitor has narrowed things
+  // down — showing "1,000 homes" over an unfiltered catalogue is just noise.
+  const hasFilters = Object.keys(filters).length > 0
 
   return (
     <div className="space-y-6">
@@ -73,7 +82,9 @@ export function ExplorePage() {
         <p className="mt-1 text-muted-foreground">
           {isLoading || !properties
             ? 'Loading listings…'
-            : `${new Intl.NumberFormat('en-IN').format(properties.length)} homes match your search`}
+            : hasFilters
+              ? `${new Intl.NumberFormat('en-IN').format(total)} homes match your search`
+              : 'Browse every home, or filter to narrow your search.'}
         </p>
       </div>
 
@@ -98,7 +109,7 @@ export function ExplorePage() {
             }}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
-            {visible.map((property) => (
+            {properties.map((property) => (
               <PropertyCard key={property.id} property={property} />
             ))}
           </motion.div>
@@ -108,7 +119,7 @@ export function ExplorePage() {
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                onClick={() => setLimit((l) => l + LOAD_MORE_STEP)}
               >
                 Load more homes
               </Button>

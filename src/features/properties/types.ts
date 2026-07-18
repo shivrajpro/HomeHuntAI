@@ -148,7 +148,17 @@ export interface PropertyFilters {
   region?: Region
   listingType?: ListingType
   propertyType?: PropertyType
+  /**
+   * Minimum BHK — a `>=` bound. Kept for Nestor's natural-language intent
+   * ("3 BHK" reads as "3 or more"), which hands off to Explore via the URL.
+   */
   minBhk?: number
+  /**
+   * Exact BHK configurations to include (`bhk IN (…)`). Powers the Explore
+   * BHK multiselect, where "2 BHK" means exactly 2. Takes precedence over
+   * `minBhk` when both are present.
+   */
+  bhks?: number[]
   maxPrice?: number
 }
 

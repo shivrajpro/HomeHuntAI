@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'react-router-dom'
-import { Search, X } from 'lucide-react'
+import { Check, ChevronDown, Search, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { filtersToParams, paramsToFilters } from '@/features/properties/filter-params'
@@ -13,13 +13,16 @@ import type {
   Region,
 } from '@/features/properties/types'
 
-/** The raw form shape — every field is a string ('' means "any"). */
+/**
+ * The raw form shape — every field is a string ('' means "any"). BHK lives
+ * outside the form as its own `number[]` state, since it's an exact-match
+ * multiselect rather than a single string value.
+ */
 interface FilterForm {
   search: string
   region: '' | Region
   listingType: '' | ListingType
   propertyType: '' | PropertyType
-  minBhk: '' | string
   maxPrice: '' | string
 }
 
@@ -28,7 +31,6 @@ const EMPTY: FilterForm = {
   region: '',
   listingType: '',
   propertyType: '',
-  minBhk: '',
   maxPrice: '',
 }
 
@@ -60,19 +62,30 @@ function formFromParams(params: URLSearchParams): FilterForm {
     region: f.region ?? '',
     listingType: f.listingType ?? '',
     propertyType: f.propertyType ?? '',
-    minBhk: f.minBhk != null ? String(f.minBhk) : '',
     maxPrice: f.maxPrice != null ? String(f.maxPrice) : '',
   }
 }
 
-/** Translate the string-based form into typed, sparse `PropertyFilters`. */
-function toFilters(form: FilterForm): PropertyFilters {
+/**
+ * Seed the BHK multiselect from URL params. Exact `bhks` are used as-is; a
+ * Nestor hand-off's `minBhk` ("3+ BHK") is expanded to every option at or
+ * above it so the exact-match selector reflects the same intent.
+ */
+function bhksFromParams(params: URLSearchParams): number[] {
+  const f = paramsToFilters(params)
+  if (f.bhks && f.bhks.length > 0) return f.bhks
+  if (f.minBhk != null) return BHK_OPTIONS.filter((b) => b >= f.minBhk!)
+  return []
+}
+
+/** Translate the string-based form + BHK selection into typed, sparse `PropertyFilters`. */
+function toFilters(form: FilterForm, bhks: number[]): PropertyFilters {
   const filters: PropertyFilters = {}
   if (form.search.trim()) filters.search = form.search.trim()
   if (form.region) filters.region = form.region
   if (form.listingType) filters.listingType = form.listingType
   if (form.propertyType) filters.propertyType = form.propertyType
-  if (form.minBhk) filters.minBhk = Number(form.minBhk)
+  if (bhks.length > 0) filters.bhks = [...bhks].sort((a, b) => a - b)
   if (form.maxPrice) filters.maxPrice = Number(form.maxPrice)
   return filters
 }
@@ -92,13 +105,16 @@ export function FilterBar({
   // Explore link — then keep writing back to it below so the URL stays the
   // source of truth for the current search (shareable, survives a refresh).
   const [initialForm] = useState(() => formFromParams(searchParams))
+  const [selectedBhks, setSelectedBhks] = useState<number[]>(() =>
+    bhksFromParams(searchParams),
+  )
 
   const { register, watch, reset } = useForm<FilterForm>({
     defaultValues: initialForm,
   })
 
-  // A handed-off budget/BHK may not be one of the presets — surface it as an
-  // extra option so the select can show the value the user actually asked for.
+  // A handed-off budget may not be one of the presets — surface it as an extra
+  // option so the select can show the value the user actually asked for.
   const initialMaxPrice = initialForm.maxPrice ? Number(initialForm.maxPrice) : null
   const priceOptions =
     initialMaxPrice != null && !PRICE_OPTIONS.some((p) => p.value === initialMaxPrice)
@@ -107,19 +123,13 @@ export function FilterBar({
         )
       : PRICE_OPTIONS
 
-  const initialBhk = initialForm.minBhk ? Number(initialForm.minBhk) : null
-  const bhkOptions =
-    initialBhk != null && !BHK_OPTIONS.includes(initialBhk)
-      ? [...BHK_OPTIONS, initialBhk].sort((a, b) => a - b)
-      : BHK_OPTIONS
-
   // Push typed filters upward and sync them to the URL whenever any field
   // changes (debounced for search) — makes the search shareable and lets it
   // survive a refresh. `replace` so filter tweaks don't spam browser history.
   const values = watch()
   useEffect(() => {
     const timer = setTimeout(() => {
-      const filters = toFilters(values)
+      const filters = toFilters(values, selectedBhks)
       onChange(filters)
       setSearchParams(filtersToParams(filters), { replace: true })
     }, 200)
@@ -130,11 +140,12 @@ export function FilterBar({
     values.region,
     values.listingType,
     values.propertyType,
-    values.minBhk,
     values.maxPrice,
+    selectedBhks,
   ])
 
-  const hasActive = Object.values(values).some((v) => v !== '')
+  const hasActive =
+    Object.values(values).some((v) => v !== '') || selectedBhks.length > 0
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">
@@ -175,14 +186,7 @@ export function FilterBar({
             ))}
           </select>
 
-          <select {...register('minBhk')} aria-label="Minimum BHK" className={selectClass}>
-            <option value="">Any BHK</option>
-            {bhkOptions.map((b) => (
-              <option key={b} value={b}>
-                {b}+ BHK
-              </option>
-            ))}
-          </select>
+          <BhkMultiSelect selected={selectedBhks} onChange={setSelectedBhks} />
 
           <select {...register('maxPrice')} aria-label="Maximum price" className={selectClass}>
             <option value="">Max price</option>
@@ -197,7 +201,10 @@ export function FilterBar({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => reset(EMPTY)}
+              onClick={() => {
+                reset(EMPTY)
+                setSelectedBhks([])
+              }}
               className="text-muted-foreground"
             >
               <X className="size-4" />
@@ -206,6 +213,91 @@ export function FilterBar({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Exact-match, multiselect BHK picker — "2 BHK" means exactly 2, not "2 or more". */
+function BhkMultiSelect({
+  selected,
+  onChange,
+}: {
+  selected: number[]
+  onChange: (next: number[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click or Escape so the popover behaves like a native menu.
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  function toggle(bhk: number) {
+    onChange(
+      selected.includes(bhk)
+        ? selected.filter((b) => b !== bhk)
+        : [...selected, bhk].sort((a, b) => a - b),
+    )
+  }
+
+  const label =
+    selected.length === 0
+      ? 'Any BHK'
+      : `${[...selected].sort((a, b) => a - b).join(', ')} BHK`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label="BHK"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(selectClass, 'flex w-full items-center justify-between gap-2')}
+      >
+        <span className={cn('truncate', selected.length === 0 && 'text-muted-foreground')}>
+          {label}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable
+          className="absolute z-20 mt-1 min-w-40 rounded-md border border-border/60 bg-popover p-1 shadow-md"
+        >
+          {BHK_OPTIONS.map((b) => {
+            const isSelected = selected.includes(b)
+            return (
+              <button
+                key={b}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => toggle(b)}
+                className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+              >
+                <span>{b} BHK</span>
+                {isSelected && <Check className="size-4 text-primary" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

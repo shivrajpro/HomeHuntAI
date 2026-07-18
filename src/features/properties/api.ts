@@ -105,18 +105,34 @@ function escapeOrValue(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`
 }
 
-/** Fetch listings, optionally filtered — filters run server-side as Supabase query predicates. */
+/** A page of listings plus the total number of matches (before `limit`). */
+export interface PropertyPage {
+  properties: Property[]
+  /** Total rows matching the filters, independent of `limit` — drives the count + "Load more". */
+  total: number
+}
+
+/**
+ * Fetch listings, optionally filtered — filters run server-side as Supabase
+ * query predicates. `limit` caps the rows transferred (Explore loads a small
+ * first page to keep latency low), while `total` still reports every match so
+ * the UI knows whether there's more to load.
+ */
 export async function fetchProperties(
   filters: PropertyFilters = {},
-): Promise<Property[]> {
-  const { search, region, listingType, propertyType, minBhk, maxPrice } = filters
+  limit?: number,
+): Promise<PropertyPage> {
+  const { search, region, listingType, propertyType, minBhk, bhks, maxPrice } =
+    filters
 
-  let query = supabase.from('properties').select('*')
+  let query = supabase.from('properties').select('*', { count: 'exact' })
 
   if (region) query = query.eq('region', region)
   if (listingType) query = query.eq('listing_type', listingType)
   if (propertyType) query = query.eq('property_type', propertyType)
-  if (minBhk != null) query = query.gte('bhk', minBhk)
+  // Exact-match BHK (from the Explore multiselect) wins over Nestor's `>=` intent.
+  if (bhks && bhks.length > 0) query = query.in('bhk', bhks)
+  else if (minBhk != null) query = query.gte('bhk', minBhk)
   if (maxPrice != null) query = query.lte('price', maxPrice)
 
   if (search?.trim()) {
@@ -132,9 +148,11 @@ export async function fetchProperties(
     )
   }
 
-  const { data, error } = await query
+  if (limit != null) query = query.limit(limit)
+
+  const { data, error, count } = await query
   if (error) throw error
-  return (data ?? []).map(fromRow)
+  return { properties: (data ?? []).map(fromRow), total: count ?? 0 }
 }
 
 // --- Nestor's ranking projection -------------------------------------------

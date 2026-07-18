@@ -61,7 +61,7 @@ across 2,000 listings.
 
 ### 🏘️ Search & Decide
 
-- **Explore** (`/explore`) — responsive card grid with server-side filters (search, Buy/Rent, city, type, BHK, max price), URL-synced so any search is shareable and survives refresh, loading skeletons, empty/error states, "Load more" paging (24/page).
+- **Explore** (`/explore`) — responsive card grid with server-side filters (search, Buy/Rent, city, type, exact-match multiselect BHK, max price), URL-synced so any search is shareable and survives refresh, loading skeletons, empty/error states. Loads a small first page (36 rows) for low latency and grows it via "Load more" (+24). The result count shows only once a filter is applied.
 - **Property detail** (`/property/:id`) — image gallery, key specs, description + highlights, amenities, nearby landmarks, and a sticky sidebar with price, agent contact (`tel:`/`mailto:`) and neighborhood intel score bars.
 - **Compare** (`/compare`) — 2–3 homes side by side, scored across Budget, Commute, Investment Potential, Family Friendliness, Lifestyle Fit and Amenities, with a **"Best overall"** winner, reasoning paragraph and runner-up notes.
 - **Shortlist** (`/shortlist`) — heart any home; persisted to `localStorage` with a live count badge in the nav.
