@@ -57,9 +57,9 @@ across 2,000 listings.
 | **Why this home** | Plain-language strengths drawn from *your* priorities first — raw scores stay internal |
 | **Confidence basis** | Every fit % is grounded in a sentence: top-priority match, budget headroom, and caveats |
 | **Near-miss explanations** | *"Why weren't these recommended?"* — strong homes that missed by **exactly one** flexible constraint, with the reason |
-| **Visual fit meter** | Per-pick breakdown of Budget, Commute, Lifestyle, Family and Investment as 0–100 bars |
+| **Visual fit meter** | Per-pick breakdown of Affordability, Commute, Lifestyle, Family and Investment — each a qualitative tier (Excellent → Limited) with a plain-language caption (e.g. "₹54 L under your ₹90 L budget"), and the factors you asked for flagged and surfaced first |
 | **Trade-off simulator** | "What if" sliders — drag your max budget (+₹20 L) or how much each factor (affordability, commute, family…) counts, and the shortlist re-scores and re-ranks **live**, arrows showing each home's movement. Deterministic, so it runs instantly and fully offline — no Gemini call |
-| **Editable priorities** | Remove/add priority chips to re-rank in place — no re-parsing |
+| **Editable priorities** | Remove/add priority chips to re-rank in place — no re-parsing. The toggled chip updates instantly and that turn shows a "Re-ranking picks…" spinner (with dimmed picks) while the re-rank is in flight |
 | **Scope guard** | Off-topic first messages get a redirect instead of ranking the whole catalogue |
 
 ### 🏘️ Search & Decide

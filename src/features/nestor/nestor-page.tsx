@@ -27,9 +27,8 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { ScoreBar } from '@/components/ui/score-bar'
 import { filtersToParams } from '@/features/properties/filter-params'
-import { buildFitMeter } from '@/features/nestor/fit-meter'
+import { buildFitMeter, fitTier, type FitMeterBar } from '@/features/nestor/fit-meter'
 import {
   buildBudgetRange,
   buildSimSliders,
@@ -95,6 +94,54 @@ function fitTone(fit: number): string {
   if (fit >= 80) return 'bg-success/15 text-success'
   if (fit >= 65) return 'bg-primary/15 text-primary'
   return 'bg-warning/15 text-warning'
+}
+
+/** Text colour for a fit tier — greener the stronger. */
+function tierTone(score: number): string {
+  if (score >= 85) return 'text-success'
+  if (score >= 70) return 'text-primary'
+  if (score >= 55) return 'text-foreground'
+  if (score >= 40) return 'text-warning'
+  return 'text-muted-foreground'
+}
+
+/**
+ * One dimension of the fit breakdown: a qualitative tier ("Excellent") plus a
+ * concrete caption ("₹54 L under your ₹90 L budget") so the bar reads as
+ * meaning, not a bare 0–100. Factors the user asked for are flagged and lead.
+ */
+function FitBar({ bar }: { bar: FitMeterBar }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-xs font-medium text-foreground">{bar.label}</span>
+          {bar.prioritized && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary">
+              You prioritised
+            </span>
+          )}
+        </div>
+        <span className={cn('shrink-0 text-[11px] font-semibold', tierTone(bar.score))}>
+          {fitTier(bar.score)}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            bar.score >= 75
+              ? 'bg-primary'
+              : bar.score >= 50
+                ? 'bg-warning'
+                : 'bg-muted-foreground/40',
+          )}
+          style={{ width: `${bar.score}%` }}
+        />
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">{bar.caption}</p>
+    </div>
+  )
 }
 
 function PickCard({
@@ -210,9 +257,22 @@ function PickCard({
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="relative z-20 overflow-hidden"
             >
-              <div className="mt-2 space-y-2 rounded-lg bg-muted/30 p-2.5">
+              <div className="mt-2 space-y-3 rounded-lg bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium tracking-tight text-foreground">
+                    How this home fits your brief
+                  </p>
+                  <span
+                    className={cn(
+                      'shrink-0 text-[11px] font-semibold',
+                      tierTone(fit),
+                    )}
+                  >
+                    {fitTier(fit)} overall
+                  </span>
+                </div>
                 {fitBars.map((bar) => (
-                  <ScoreBar key={bar.key} label={bar.label} score={bar.score} />
+                  <FitBar key={bar.key} bar={bar} />
                 ))}
               </div>
             </motion.div>
@@ -233,10 +293,13 @@ function PickCard({
 function PriorityEditor({
   active,
   lifestyleTags,
+  pending,
   onChange,
 }: {
   active: PriorityDimension[]
   lifestyleTags: string[]
+  /** A re-rank is in flight — freeze the chips and show a loading hint. */
+  pending: boolean
   onChange: (next: PriorityDimension[]) => void
 }) {
   const labelFor = (dim: PriorityDimension) =>
@@ -245,7 +308,15 @@ function PriorityEditor({
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
-      <p className="text-xs font-medium tracking-tight">Detected priorities</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium tracking-tight">Detected priorities</p>
+        {pending && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary">
+            <Loader2 className="size-3 animate-spin" />
+            Re-ranking picks…
+          </span>
+        )}
+      </div>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
         Ordered by importance — the first counts most. Tap to adjust and re-rank.
       </p>
@@ -272,7 +343,7 @@ function PriorityEditor({
             <button
               type="button"
               onClick={() => onChange(active.filter((d) => d !== dim))}
-              disabled={active.length === 1}
+              disabled={active.length === 1 || pending}
               aria-label={`Remove ${labelFor(dim)}`}
               className="grid size-4 place-items-center rounded-full text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -288,7 +359,8 @@ function PriorityEditor({
               key={o.value}
               type="button"
               onClick={() => onChange([...active, o.value])}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:border-primary/40"
+              disabled={pending}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:border-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="size-3" />
               {o.label}
@@ -708,6 +780,7 @@ function ScopeFallback({ onPick }: { onPick: (brief: string) => void }) {
 
 function AssistantMessage({
   message,
+  reranking,
   onEditPriorities,
   onPickExample,
   onToggleSpeak,
@@ -715,6 +788,8 @@ function AssistantMessage({
   voiceSupported,
 }: {
   message: ChatMessage
+  /** Whether this turn's picks are being re-ranked after a chip edit. */
+  reranking: boolean
   onEditPriorities: (priorities: PriorityDimension[]) => void
   onPickExample: (brief: string) => void
   /** Speak this answer aloud, or stop it if it's the one currently speaking. */
@@ -758,11 +833,18 @@ function AssistantMessage({
           <PriorityEditor
             active={answer.intent.priorities}
             lifestyleTags={answer.intent.lifestyleTags}
+            pending={reranking}
             onChange={onEditPriorities}
           />
         )}
         {answer && answer.picks.length > 0 && (
-          <div className="space-y-2">
+          <div
+            className={cn(
+              'space-y-2 transition-opacity',
+              reranking && 'pointer-events-none opacity-50',
+            )}
+            aria-busy={reranking}
+          >
             {answer.picks.map((pick, i) => (
               <PickCard
                 key={pick.property.id}
@@ -1055,6 +1137,9 @@ export function NestorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
+  // The message id whose picks are being re-ranked after a chip edit, so that
+  // exactly that turn (not the whole page) shows a loading state.
+  const [rerankingId, setRerankingId] = useState<string | null>(null)
   // The in-flight turn's reasoning trace, streamed live under the composer.
   const [liveTrace, setLiveTrace] = useState<NestorTraceEvent[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1152,8 +1237,22 @@ export function NestorPage() {
     messageId: string,
     priorities: PriorityDimension[],
   ) {
+    // Ignore repeat clicks while a re-rank is already in flight for any turn.
+    if (rerankingId) return
     const target = messages.find((m) => m.id === messageId)
     if (!target?.answer) return
+
+    // Reflect the toggled chip straight away — the click registers visibly
+    // without waiting on the round-trip — and mark this turn as in-flight so
+    // its editor and picks show a loading state.
+    setRerankingId(messageId)
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && m.answer
+          ? { ...m, answer: { ...m.answer, intent: { ...m.answer.intent, priorities } } }
+          : m,
+      ),
+    )
 
     const trace: NestorTraceEvent[] = []
     const onTrace: NestorTrace = (event) => {
@@ -1162,21 +1261,25 @@ export function NestorPage() {
       trace.push(...next)
     }
 
-    const answer = await rerankIntent(
-      {
-        ...target.answer.intent,
-        priorities,
-        usedDefaultPriorities: false,
-      },
-      3,
-      onTrace,
-    )
-    lastIntentRef.current = answer.intent
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, text: answer.summary, answer, trace } : m,
-      ),
-    )
+    try {
+      const answer = await rerankIntent(
+        {
+          ...target.answer.intent,
+          priorities,
+          usedDefaultPriorities: false,
+        },
+        3,
+        onTrace,
+      )
+      lastIntentRef.current = answer.intent
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, text: answer.summary, answer, trace } : m,
+        ),
+      )
+    } finally {
+      setRerankingId(null)
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -1213,6 +1316,7 @@ export function NestorPage() {
                   ) : (
                     <AssistantMessage
                       message={m}
+                      reranking={rerankingId === m.id}
                       onEditPriorities={(priorities) =>
                         editPriorities(m.id, priorities)
                       }
@@ -1247,7 +1351,12 @@ export function NestorPage() {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-0 mt-4 bg-background/80 py-3 backdrop-blur-xl"
+        // z-30 keeps the composer above the message list (header/nav are z-40,
+        // the compare tray z-50). Without it, the tall answer sliding up under
+        // the sticky bar during the post-results smooth scroll hit-tests over
+        // the composer — its link overlays (z-10) and "View in Explore" button
+        // steal a tap meant for the voice/mic/send controls and navigate away.
+        className="sticky bottom-0 z-30 mt-4 bg-background/80 py-3 backdrop-blur-xl"
       >
         <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card p-2 shadow-sm focus-within:border-primary/40">
           <textarea
