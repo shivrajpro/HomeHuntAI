@@ -27,9 +27,8 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { ScoreBar } from '@/components/ui/score-bar'
 import { filtersToParams } from '@/features/properties/filter-params'
-import { buildFitMeter } from '@/features/nestor/fit-meter'
+import { buildFitMeter, fitTier, type FitMeterBar } from '@/features/nestor/fit-meter'
 import {
   buildBudgetRange,
   buildSimSliders,
@@ -95,6 +94,54 @@ function fitTone(fit: number): string {
   if (fit >= 80) return 'bg-success/15 text-success'
   if (fit >= 65) return 'bg-primary/15 text-primary'
   return 'bg-warning/15 text-warning'
+}
+
+/** Text colour for a fit tier — greener the stronger. */
+function tierTone(score: number): string {
+  if (score >= 85) return 'text-success'
+  if (score >= 70) return 'text-primary'
+  if (score >= 55) return 'text-foreground'
+  if (score >= 40) return 'text-warning'
+  return 'text-muted-foreground'
+}
+
+/**
+ * One dimension of the fit breakdown: a qualitative tier ("Excellent") plus a
+ * concrete caption ("₹54 L under your ₹90 L budget") so the bar reads as
+ * meaning, not a bare 0–100. Factors the user asked for are flagged and lead.
+ */
+function FitBar({ bar }: { bar: FitMeterBar }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-xs font-medium text-foreground">{bar.label}</span>
+          {bar.prioritized && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary">
+              You prioritised
+            </span>
+          )}
+        </div>
+        <span className={cn('shrink-0 text-[11px] font-semibold', tierTone(bar.score))}>
+          {fitTier(bar.score)}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            bar.score >= 75
+              ? 'bg-primary'
+              : bar.score >= 50
+                ? 'bg-warning'
+                : 'bg-muted-foreground/40',
+          )}
+          style={{ width: `${bar.score}%` }}
+        />
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">{bar.caption}</p>
+    </div>
+  )
 }
 
 function PickCard({
@@ -210,9 +257,22 @@ function PickCard({
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="relative z-20 overflow-hidden"
             >
-              <div className="mt-2 space-y-2 rounded-lg bg-muted/30 p-2.5">
+              <div className="mt-2 space-y-3 rounded-lg bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium tracking-tight text-foreground">
+                    How this home fits your brief
+                  </p>
+                  <span
+                    className={cn(
+                      'shrink-0 text-[11px] font-semibold',
+                      tierTone(fit),
+                    )}
+                  >
+                    {fitTier(fit)} overall
+                  </span>
+                </div>
                 {fitBars.map((bar) => (
-                  <ScoreBar key={bar.key} label={bar.label} score={bar.score} />
+                  <FitBar key={bar.key} bar={bar} />
                 ))}
               </div>
             </motion.div>
