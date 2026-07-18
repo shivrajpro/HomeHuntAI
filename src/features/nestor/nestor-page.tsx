@@ -293,10 +293,13 @@ function PickCard({
 function PriorityEditor({
   active,
   lifestyleTags,
+  pending,
   onChange,
 }: {
   active: PriorityDimension[]
   lifestyleTags: string[]
+  /** A re-rank is in flight — freeze the chips and show a loading hint. */
+  pending: boolean
   onChange: (next: PriorityDimension[]) => void
 }) {
   const labelFor = (dim: PriorityDimension) =>
@@ -305,7 +308,15 @@ function PriorityEditor({
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
-      <p className="text-xs font-medium tracking-tight">Detected priorities</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium tracking-tight">Detected priorities</p>
+        {pending && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary">
+            <Loader2 className="size-3 animate-spin" />
+            Re-ranking picks…
+          </span>
+        )}
+      </div>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
         Ordered by importance — the first counts most. Tap to adjust and re-rank.
       </p>
@@ -332,7 +343,7 @@ function PriorityEditor({
             <button
               type="button"
               onClick={() => onChange(active.filter((d) => d !== dim))}
-              disabled={active.length === 1}
+              disabled={active.length === 1 || pending}
               aria-label={`Remove ${labelFor(dim)}`}
               className="grid size-4 place-items-center rounded-full text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -348,7 +359,8 @@ function PriorityEditor({
               key={o.value}
               type="button"
               onClick={() => onChange([...active, o.value])}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:border-primary/40"
+              disabled={pending}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:border-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="size-3" />
               {o.label}
@@ -768,6 +780,7 @@ function ScopeFallback({ onPick }: { onPick: (brief: string) => void }) {
 
 function AssistantMessage({
   message,
+  reranking,
   onEditPriorities,
   onPickExample,
   onToggleSpeak,
@@ -775,6 +788,8 @@ function AssistantMessage({
   voiceSupported,
 }: {
   message: ChatMessage
+  /** Whether this turn's picks are being re-ranked after a chip edit. */
+  reranking: boolean
   onEditPriorities: (priorities: PriorityDimension[]) => void
   onPickExample: (brief: string) => void
   /** Speak this answer aloud, or stop it if it's the one currently speaking. */
@@ -818,11 +833,18 @@ function AssistantMessage({
           <PriorityEditor
             active={answer.intent.priorities}
             lifestyleTags={answer.intent.lifestyleTags}
+            pending={reranking}
             onChange={onEditPriorities}
           />
         )}
         {answer && answer.picks.length > 0 && (
-          <div className="space-y-2">
+          <div
+            className={cn(
+              'space-y-2 transition-opacity',
+              reranking && 'pointer-events-none opacity-50',
+            )}
+            aria-busy={reranking}
+          >
             {answer.picks.map((pick, i) => (
               <PickCard
                 key={pick.property.id}
@@ -1115,6 +1137,9 @@ export function NestorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
+  // The message id whose picks are being re-ranked after a chip edit, so that
+  // exactly that turn (not the whole page) shows a loading state.
+  const [rerankingId, setRerankingId] = useState<string | null>(null)
   // The in-flight turn's reasoning trace, streamed live under the composer.
   const [liveTrace, setLiveTrace] = useState<NestorTraceEvent[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1212,8 +1237,22 @@ export function NestorPage() {
     messageId: string,
     priorities: PriorityDimension[],
   ) {
+    // Ignore repeat clicks while a re-rank is already in flight for any turn.
+    if (rerankingId) return
     const target = messages.find((m) => m.id === messageId)
     if (!target?.answer) return
+
+    // Reflect the toggled chip straight away — the click registers visibly
+    // without waiting on the round-trip — and mark this turn as in-flight so
+    // its editor and picks show a loading state.
+    setRerankingId(messageId)
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && m.answer
+          ? { ...m, answer: { ...m.answer, intent: { ...m.answer.intent, priorities } } }
+          : m,
+      ),
+    )
 
     const trace: NestorTraceEvent[] = []
     const onTrace: NestorTrace = (event) => {
@@ -1222,21 +1261,25 @@ export function NestorPage() {
       trace.push(...next)
     }
 
-    const answer = await rerankIntent(
-      {
-        ...target.answer.intent,
-        priorities,
-        usedDefaultPriorities: false,
-      },
-      3,
-      onTrace,
-    )
-    lastIntentRef.current = answer.intent
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, text: answer.summary, answer, trace } : m,
-      ),
-    )
+    try {
+      const answer = await rerankIntent(
+        {
+          ...target.answer.intent,
+          priorities,
+          usedDefaultPriorities: false,
+        },
+        3,
+        onTrace,
+      )
+      lastIntentRef.current = answer.intent
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, text: answer.summary, answer, trace } : m,
+        ),
+      )
+    } finally {
+      setRerankingId(null)
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -1273,6 +1316,7 @@ export function NestorPage() {
                   ) : (
                     <AssistantMessage
                       message={m}
+                      reranking={rerankingId === m.id}
                       onEditPriorities={(priorities) =>
                         editPriorities(m.id, priorities)
                       }
