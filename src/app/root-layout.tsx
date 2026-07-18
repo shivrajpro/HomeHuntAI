@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
-import { Link, NavLink, Outlet, ScrollRestoration } from 'react-router-dom'
+import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { Compass, Heart, Home, Sparkles } from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { CompareTray } from '@/features/properties/components/compare-tray'
+import { useCompare } from '@/features/properties/compare-context'
 import { useShortlist } from '@/features/properties/shortlist-context'
 import { cn } from '@/lib/utils'
 
@@ -73,6 +74,13 @@ function RouteLoading() {
 
 export function RootLayout() {
   const { count } = useShortlist()
+  const { selectedIds } = useCompare()
+  const { pathname } = useLocation()
+
+  // The compare tray is `fixed`; reserve matching bottom space wherever it
+  // actually shows so page content scrolls clear instead of hiding under it.
+  // (It's suppressed on `/compare`, so no extra space is needed there.)
+  const trayVisible = selectedIds.length > 0 && pathname !== '/compare'
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -119,7 +127,12 @@ export function RootLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-8 sm:px-6 sm:pb-8">
+      <main
+        className={cn(
+          'mx-auto w-full max-w-6xl flex-1 px-4 pt-8 sm:px-6',
+          trayVisible ? 'pb-40 sm:pb-24' : 'pb-24 sm:pb-8',
+        )}
+      >
         <Suspense fallback={<RouteLoading />}>
           <Outlet />
         </Suspense>

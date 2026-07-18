@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Scale, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -10,17 +10,24 @@ import { usePropertiesByIds } from '@/features/properties/queries'
  * Floating tray that tracks the site-wide compare selection. Appears the
  * moment a home is added, everywhere in the app, so a user can browse
  * Explore, add a couple of homes, then jump straight to `/compare`.
+ *
+ * Hidden on `/compare` itself: the tray is a shortcut *to* that page, so it's
+ * redundant there — and being `fixed`, it would otherwise overlap the bottom of
+ * the comparison (the recommendation card) with no reserved space.
  */
 export function CompareTray() {
   const { selectedIds, remove, clear } = useCompare()
   const { data: properties } = usePropertiesByIds(selectedIds)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  const onComparePage = pathname === '/compare'
 
   const canCompare = selectedIds.length >= 2
 
   return (
     <AnimatePresence>
-      {selectedIds.length > 0 && (
+      {selectedIds.length > 0 && !onComparePage && (
         <motion.div
           initial={{ y: 96, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
