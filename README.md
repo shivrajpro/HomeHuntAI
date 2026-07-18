@@ -60,13 +60,14 @@ across 2,000 listings.
 | **Visual fit meter** | Per-pick breakdown of Affordability, Commute, Lifestyle, Family and Investment — each a qualitative tier (Excellent → Limited) with a plain-language caption (e.g. "₹54 L under your ₹90 L budget"), and the factors you asked for flagged and surfaced first |
 | **Trade-off simulator** | "What if" sliders — drag your max budget (+₹20 L) or how much each factor (affordability, commute, family…) counts, and the shortlist re-scores and re-ranks **live**, arrows showing each home's movement. Deterministic, so it runs instantly and fully offline — no Gemini call |
 | **Editable priorities** | Remove/add priority chips to re-rank in place — no re-parsing. The toggled chip updates instantly and that turn shows a "Re-ranking picks…" spinner (with dimmed picks) while the re-rank is in flight |
+| **Compare picks** | Add any of Nestor's picks to the site-wide compare selection straight from the answer — the same floating tray and side-by-side `/compare` view used from Explore, no need to re-find the homes |
 | **Scope guard** | Off-topic first messages get a redirect instead of ranking the whole catalogue |
 
 ### 🏘️ Search & Decide
 
 - **Explore** (`/explore`) — responsive card grid with server-side filters (search, Buy/Rent, city, type, exact-match multiselect BHK, max price), URL-synced so any search is shareable and survives refresh, loading skeletons, empty/error states. Loads a small first page (36 rows) for low latency and grows it via "Load more" (+24). The result count shows only once a filter is applied.
 - **Property detail** (`/property/:id`) — image gallery, key specs, description + highlights, amenities, nearby landmarks, and a sticky sidebar with price, agent contact (`tel:`/`mailto:`) and neighborhood intel score bars.
-- **Compare** (`/compare`) — 2–3 homes side by side, scored across Budget, Commute, Investment Potential, Family Friendliness, Lifestyle Fit and Amenities, with a **"Best overall"** winner, reasoning paragraph and runner-up notes.
+- **Compare** (`/compare`) — 2–3 homes side by side, scored across Budget, Commute, Investment Potential, Family Friendliness, Lifestyle Fit and Amenities, with a **"Best overall"** winner, reasoning paragraph and runner-up notes. Homes can be added from Explore, a listing page **or Nestor's picks** — a floating tray follows you across the app (and steps aside once you're on the compare page itself).
 - **Shortlist** (`/shortlist`) — heart any home; persisted to `localStorage` with a live count badge in the nav.
 - **Decision Report** (`/decision-report`) — a structured write-up of any Nestor answer: User Requirements, AI Understanding, Top Recommendation, Strengths, Trade-offs, Alternative Options, Final Recommendation.
 - **Nestor → Explore hand-off** — every answer maps its intent onto Explore's filters via URL query params.

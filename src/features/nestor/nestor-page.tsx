@@ -28,6 +28,7 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { filtersToParams } from '@/features/properties/filter-params'
+import { useCompare } from '@/features/properties/compare-context'
 import { buildFitMeter, fitTier, type FitMeterBar } from '@/features/nestor/fit-meter'
 import {
   buildBudgetRange,
@@ -157,6 +158,8 @@ function PickCard({
   const isRent = property.listingType === 'Rent'
   const [showFitMeter, setShowFitMeter] = useState(false)
   const fitBars = buildFitMeter(property, intent)
+  const { isSelected, toggle: toggleCompare, canAddMore } = useCompare()
+  const comparing = isSelected(property.id)
 
   return (
     <div className="group relative flex gap-3 rounded-xl border border-border/60 bg-background p-3 transition-colors hover:border-primary/40 focus-within:border-primary/40">
@@ -232,22 +235,50 @@ function PickCard({
           <span className="line-clamp-2">{confidenceBasis}</span>
         </p>
 
-        {/* Visual fit meter — Overall Fit % (above) plus a breakdown, collapsed by default. */}
-        <button
-          type="button"
-          onClick={() => setShowFitMeter((v) => !v)}
-          aria-expanded={showFitMeter}
-          className="relative z-20 mt-1.5 flex items-center gap-1 self-start text-[11px] font-medium text-primary outline-none"
-        >
-          <BarChart3 className="size-3" />
-          {showFitMeter ? 'Hide fit breakdown' : 'Fit breakdown'}
-          <ChevronDown
+        {/* Actions — expand the fit breakdown, or add this home to the compare tray. */}
+        <div className="relative z-20 mt-1.5 flex items-center gap-3">
+          {/* Visual fit meter — Overall Fit % (above) plus a breakdown, collapsed by default. */}
+          <button
+            type="button"
+            onClick={() => setShowFitMeter((v) => !v)}
+            aria-expanded={showFitMeter}
+            className="flex items-center gap-1 text-[11px] font-medium text-primary outline-none"
+          >
+            <BarChart3 className="size-3" />
+            {showFitMeter ? 'Hide fit breakdown' : 'Fit breakdown'}
+            <ChevronDown
+              className={cn(
+                'size-3 transition-transform',
+                showFitMeter && 'rotate-180',
+              )}
+            />
+          </button>
+
+          {/* Add to the site-wide compare selection — the floating tray then
+              lets the user jump to /compare, exactly as from Explore. */}
+          <button
+            type="button"
+            onClick={() => toggleCompare(property.id)}
+            disabled={!comparing && !canAddMore}
+            aria-pressed={comparing}
+            title={
+              comparing
+                ? 'Remove from comparison'
+                : canAddMore
+                  ? 'Add to comparison'
+                  : 'You can compare up to 3 homes at a time'
+            }
             className={cn(
-              'size-3 transition-transform',
-              showFitMeter && 'rotate-180',
+              'flex items-center gap-1 text-[11px] font-medium outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              comparing
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground',
             )}
-          />
-        </button>
+          >
+            <Scale className="size-3" />
+            {comparing ? 'Comparing' : 'Compare'}
+          </button>
+        </div>
         <AnimatePresence initial={false}>
           {showFitMeter && (
             <motion.div
