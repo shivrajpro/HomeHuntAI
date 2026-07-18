@@ -286,6 +286,14 @@ export interface NestorAnswer {
    * turns, which carry no picks at all.
    */
   reasonedBy?: 'gemini' | 'local'
+  /**
+   * The full hydrated shortlist this turn ranked (the ~12 candidates Gemini
+   * chose from, picks included). Kept so the client-side trade-off simulator
+   * can re-rank a real pool of homes live — dragging budget or a priority
+   * weight can promote a candidate above the current picks — with no extra
+   * network or Gemini call. Absent on `offTopic`/`noNewSignal` turns.
+   */
+  simulatorHomes?: Property[]
 }
 
 // --- Live reasoning trace ("Nestor's thinking") ----------------------------
@@ -1410,6 +1418,9 @@ async function answerFor(
     refined,
     relaxedNote: relaxed.length ? relaxed.join(', ') : undefined,
     reasonedBy,
+    // The shortlist we ranked, hydrated — the trade-off simulator re-ranks over
+    // this pool client-side. Picks are always a subset of it.
+    simulatorHomes: candidates,
   }
 }
 

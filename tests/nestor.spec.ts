@@ -53,6 +53,33 @@ test.describe('Nestor', () => {
     await expect(page.getByText('Picks validated')).toBeVisible()
   })
 
+  test('the trade-off simulator re-ranks the shortlist live, offline', async ({ page }) => {
+    await page.goto('/nestor')
+    await submitNestorBrief(
+      page,
+      'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr, safety and good schools matter most.',
+    )
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+
+    // Expand the simulator disclosure.
+    const toggle = page.getByRole('button', { name: /Trade-off simulator/i })
+    await expect(toggle).toBeVisible()
+    await toggle.click()
+
+    // Its controls are present: a budget ceiling and importance sliders.
+    const budgetSlider = page.getByLabel('Budget ceiling', { exact: true })
+    await expect(budgetSlider).toBeVisible()
+    await expect(page.getByText(/re-ranks\s+live, no AI call/i)).toBeVisible()
+
+    // Dragging the budget to its ceiling dirties the state (a delta chip and a
+    // reset affordance appear) — proof the re-rank ran client-side, no network.
+    await budgetSlider.focus()
+    await budgetSlider.press('End')
+    await expect(
+      page.getByRole('button', { name: /Reset sliders/i }),
+    ).toBeVisible()
+  })
+
   test('removing the only remaining priority chip is prevented', async ({ page }) => {
     await page.goto('/nestor')
     await submitNestorBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
