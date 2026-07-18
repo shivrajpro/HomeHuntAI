@@ -34,6 +34,25 @@ test.describe('Nestor', () => {
     await expect(page.getByRole('button', { name: /View Decision Report/i })).toBeVisible()
   })
 
+  test('"Nestor\'s thinking" streams the pipeline and stays as a replayable trace', async ({ page }) => {
+    await page.goto('/nestor')
+    await submitNestorBrief(
+      page,
+      'Family with two kids, buying a 3 BHK in Bangalore under 1.5 Cr, safety and good schools matter most.',
+    )
+
+    // The trace panel persists on the answer, collapsed by default.
+    const panel = page.getByText("Nestor's thinking")
+    await expect(panel.first()).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByText(/% fit/).first()).toBeVisible({ timeout: 20_000 })
+
+    // Expanding it reveals the real, ordered pipeline stages.
+    await panel.first().click()
+    await expect(page.getByText('Listings scanned')).toBeVisible()
+    await expect(page.getByText('Ranked by fit')).toBeVisible()
+    await expect(page.getByText('Picks validated')).toBeVisible()
+  })
+
   test('removing the only remaining priority chip is prevented', async ({ page }) => {
     await page.goto('/nestor')
     await submitNestorBrief(page, 'Looking for a high-investment 2 BHK apartment in Pune under 90 lakh.')
