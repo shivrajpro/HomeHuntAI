@@ -76,7 +76,7 @@ across 2,000 listings.
 - Voice-first Nestor — talk your brief in and hear the top pick read back, using the browser's own Web Speech APIs (no backend, no extra dependency)
 - Light/dark theming with no flash-of-wrong-theme (light by default)
 - Mobile bottom tab bar + floating compare tray
-- Route-level code splitting (initial JS ~766 KB, down from ~6 MB)
+- Route-level code splitting (initial JS ~766 KB, down from ~6 MB), with a one-time reload on stale-chunk fetch failures and a branded route error boundary as backstop
 - Framer Motion transitions, accessible labels, verified by an automated axe-core scan
 
 ---
@@ -218,7 +218,9 @@ the current top picks.
 HomeHuntAI/
 ├── src/
 │   ├── app/
-│   │   ├── router.tsx              # Routes + React.lazy code splitting
+│   │   ├── router.tsx              # Routes + lazy code splitting + error boundary
+│   │   ├── lazy-with-retry.ts      # Reloads once on stale-chunk import failure
+│   │   ├── route-error-boundary.tsx # Branded recoverable error screen
 │   │   ├── root-layout.tsx         # Header, mobile tab bar, compare tray, Suspense
 │   │   ├── providers.tsx           # Theme, Query, Compare, Shortlist providers
 │   │   └── not-found-page.tsx
