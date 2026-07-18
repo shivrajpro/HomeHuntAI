@@ -71,7 +71,8 @@ export function ExplorePage() {
   const hasMore = properties ? properties.length < total : false
   // The result count is only meaningful once the visitor has narrowed things
   // down — showing "1,000 homes" over an unfiltered catalogue is just noise.
-  const hasFilters = Object.keys(filters).length > 0
+  // Buy/Rent (`listingType`) is always set, so it doesn't count as narrowing.
+  const hasFilters = Object.keys(filters).some((key) => key !== 'listingType')
 
   return (
     <div className="space-y-6">

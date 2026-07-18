@@ -42,7 +42,7 @@ const PROPERTY_TYPES: PropertyType[] = [
   'Plot',
   'Builder Floor',
 ]
-const BHK_OPTIONS = [1, 2, 3, 4]
+const BHK_OPTIONS = [1, 2, 3, 4, 5]
 /** Max-price buckets in ₹ — spans both sale (Cr) and rent (K/month) ranges. */
 const PRICE_OPTIONS = [
   { value: 25_000, label: '₹25K' },
