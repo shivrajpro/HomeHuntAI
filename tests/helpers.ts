@@ -3,6 +3,14 @@ import { type Page, expect } from '@playwright/test'
 /** Wait for the Explore grid to finish its first load (skeletons gone, cards or empty-state present). */
 export async function waitForExploreLoaded(page: Page) {
   await expect(page.getByText('Loading listings…')).toHaveCount(0, { timeout: 15_000 })
+  // The loading label reads as absent before the app has even mounted, so also
+  // wait for actual content — a card or the empty state — to settle.
+  await expect(
+    page
+      .locator('article')
+      .or(page.getByText('No homes match those filters'))
+      .first(),
+  ).toBeVisible({ timeout: 15_000 })
 }
 
 /** Submit a Nestor brief and wait for the assistant's reply to land. */

@@ -13,8 +13,8 @@ import { queryClient } from '@/lib/query-client'
 /** Centralized, typed query keys — the single place cache keys are defined. */
 export const propertyKeys = {
   all: ['properties'] as const,
-  list: (filters: PropertyFilters) =>
-    [...propertyKeys.all, 'list', filters] as const,
+  list: (filters: PropertyFilters, limit?: number) =>
+    [...propertyKeys.all, 'list', filters, limit ?? null] as const,
   detail: (id: string) => [...propertyKeys.all, 'detail', id] as const,
   byIds: (ids: string[]) => [...propertyKeys.all, 'byIds', ids] as const,
   ranking: (bounds: RankingPoolBounds) =>
@@ -40,10 +40,10 @@ export function fetchRankingPool(
   })
 }
 
-export function useProperties(filters: PropertyFilters = {}) {
+export function useProperties(filters: PropertyFilters = {}, limit?: number) {
   return useQuery({
-    queryKey: propertyKeys.list(filters),
-    queryFn: () => fetchProperties(filters),
+    queryKey: propertyKeys.list(filters, limit),
+    queryFn: () => fetchProperties(filters, limit),
   })
 }
 

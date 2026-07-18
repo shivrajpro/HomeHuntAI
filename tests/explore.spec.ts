@@ -2,11 +2,17 @@ import { test, expect } from '@playwright/test'
 import { waitForExploreLoaded } from './helpers'
 
 test.describe('Explore — search, filter, sort, paging', () => {
-  test('loads a grid of property cards with a result count', async ({ page }) => {
+  test('loads a grid of cards; the result count appears once a filter is applied', async ({ page }) => {
     await page.goto('/explore')
     await waitForExploreLoaded(page)
     const cards = page.locator('article')
     await expect(cards.first()).toBeVisible()
+    // Unfiltered: no count — "1,000 homes" over the whole catalogue is noise.
+    await expect(page.getByText(/homes match your search/)).toHaveCount(0)
+
+    await page.getByRole('combobox').nth(1).selectOption('Bangalore')
+    await page.waitForTimeout(500)
+    await waitForExploreLoaded(page)
     await expect(page.getByText(/homes match your search/)).toBeVisible()
   })
 
@@ -49,6 +55,31 @@ test.describe('Explore — search, filter, sort, paging', () => {
     // which may itself contain the word "Rent"/"Bangalore").
     await expect(cards.first().locator('span', { hasText: /^Rent$/ })).toBeVisible()
     await expect(cards.first().locator('p', { hasText: 'Bangalore' })).toBeVisible()
+  })
+
+  test('BHK multiselect applies exact-match filters (not "2+")', async ({ page }) => {
+    await page.goto('/explore')
+    await waitForExploreLoaded(page)
+
+    // Pick exactly 2 and 3 BHK from the multiselect.
+    await page.getByRole('button', { name: 'BHK' }).click()
+    await page.getByRole('option', { name: '2 BHK' }).click()
+    await page.getByRole('option', { name: '3 BHK' }).click()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(500)
+    await waitForExploreLoaded(page)
+
+    await expect(page).toHaveURL(/bhk=2(%2C|,)3/)
+
+    // Every rendered card is exactly 2 or 3 BHK — never 1 or 4+ ("2+" would leak 4s).
+    const cards = page.locator('article')
+    const n = await cards.count()
+    expect(n).toBeGreaterThan(0)
+    for (let i = 0; i < n; i++) {
+      const text = (await cards.nth(i).textContent()) ?? ''
+      expect(text).toMatch(/[23] BHK/)
+      expect(text).not.toMatch(/[1456789] BHK/)
+    }
   })
 
   test('Clear button appears once a filter is active and resets the form', async ({ page }) => {
