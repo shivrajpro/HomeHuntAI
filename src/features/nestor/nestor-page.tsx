@@ -12,6 +12,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  Mic,
   Plus,
   RotateCcw,
   Scale,
@@ -19,6 +20,9 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Square,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react'
 
@@ -47,6 +51,11 @@ import {
   type RankedPick,
   type RejectedPick,
 } from '@/features/nestor/reasoning'
+import {
+  buildSpokenSummary,
+  useSpeechInput,
+  useSpeechOutput,
+} from '@/features/nestor/use-voice'
 import { cn, formatINR } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/use-document-title'
 
@@ -701,13 +710,24 @@ function AssistantMessage({
   message,
   onEditPriorities,
   onPickExample,
+  onToggleSpeak,
+  isSpeaking,
+  voiceSupported,
 }: {
   message: ChatMessage
   onEditPriorities: (priorities: PriorityDimension[]) => void
   onPickExample: (brief: string) => void
+  /** Speak this answer aloud, or stop it if it's the one currently speaking. */
+  onToggleSpeak: () => void
+  isSpeaking: boolean
+  voiceSupported: boolean
 }) {
   const navigate = useNavigate()
   const { answer } = message
+  // Offer a spoken read-out for any substantive turn (a redirect or bare
+  // acknowledgment isn't worth a button).
+  const canSpeak =
+    voiceSupported && !!answer && !answer.offTopic && !answer.noNewSignal
 
   function openInExplore() {
     if (!answer) return
@@ -775,6 +795,26 @@ function AssistantMessage({
               <FileText className="size-4" />
               View Decision Report
             </Button>
+            {canSpeak && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onToggleSpeak}
+                aria-label={isSpeaking ? 'Stop reading aloud' : 'Read this answer aloud'}
+                className={cn(
+                  'text-muted-foreground',
+                  isSpeaking && 'border-primary/40 text-primary',
+                )}
+              >
+                {isSpeaking ? (
+                  <Square className="size-4" />
+                ) : (
+                  <Volume2 className="size-4" />
+                )}
+                {isSpeaking ? 'Stop' : 'Listen'}
+              </Button>
+            )}
           </div>
         )}
         {answer &&
@@ -1022,6 +1062,23 @@ export function NestorPage() {
   // follow-ups ("make it cheaper", "only Bangalore") refine instead of reset.
   const lastIntentRef = useRef<NestorIntent | undefined>(undefined)
 
+  // Voice-first: speak a brief in, hear the top pick read back. Both are
+  // progressive enhancements — absent APIs simply hide their controls.
+  const voice = useSpeechOutput()
+  // The message id Nestor is currently reading aloud, so the right "Listen"
+  // button can switch to "Stop" (cleared when speech ends).
+  const [speakingId, setSpeakingId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!voice.speaking) setSpeakingId(null)
+  }, [voice.speaking])
+
+  const dictation = useSpeechInput({
+    // Stream partial words straight into the composer as they're recognised.
+    onInterim: (text) => setInput(text),
+    // On a finished utterance, submit the turn — ask out loud, get an answer.
+    onFinal: (text) => submit(text),
+  })
+
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -1032,6 +1089,8 @@ export function NestorPage() {
     if (!text || thinking) return
     if (text.length < MIN_QUERY_LENGTH || text.length > MAX_QUERY_LENGTH) return
 
+    // A new turn interrupts anything Nestor is still reading aloud.
+    voice.cancel()
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }])
     setInput('')
     setThinking(true)
@@ -1054,12 +1113,38 @@ export function NestorPage() {
     // make the *next* message look like a follow-up to an established search
     // instead of a fresh first turn, silently disabling off-topic detection.
     if (!answer.offTopic) lastIntentRef.current = answer.intent
+    const assistantId = nextId()
     setMessages((prev) => [
       ...prev,
-      { id: nextId(), role: 'assistant', text: answer.summary, answer, trace },
+      { id: assistantId, role: 'assistant', text: answer.summary, answer, trace },
     ])
     setThinking(false)
     setLiveTrace([])
+
+    // Read the recommendation back when the user has voice replies switched on.
+    if (voice.enabled) {
+      voice.speak(buildSpokenSummary(answer))
+      setSpeakingId(assistantId)
+    }
+  }
+
+  // Speak a past answer on demand, or stop it if it's the one already playing.
+  function toggleSpeak(messageId: string, answer: NestorAnswer) {
+    if (speakingId === messageId && voice.speaking) {
+      voice.cancel()
+      return
+    }
+    voice.speak(buildSpokenSummary(answer))
+    setSpeakingId(messageId)
+  }
+
+  function toggleDictation() {
+    if (dictation.listening) {
+      dictation.stop()
+    } else {
+      voice.cancel()
+      dictation.start()
+    }
   }
 
   // Re-rank a past answer after its priority chips are edited, in place.
@@ -1132,6 +1217,11 @@ export function NestorPage() {
                         editPriorities(m.id, priorities)
                       }
                       onPickExample={submit}
+                      onToggleSpeak={() =>
+                        m.answer && toggleSpeak(m.id, m.answer)
+                      }
+                      isSpeaking={speakingId === m.id && voice.speaking}
+                      voiceSupported={voice.supported}
                     />
                   )}
                 </motion.div>
@@ -1166,9 +1256,59 @@ export function NestorPage() {
             onKeyDown={onKeyDown}
             rows={1}
             maxLength={MAX_QUERY_LENGTH}
-            placeholder="e.g. 3 BHK to buy in Bangalore under ₹1.5 Cr, family-friendly and safe…"
+            placeholder={
+              dictation.listening
+                ? 'Listening… speak your brief'
+                : 'e.g. 3 BHK to buy in Bangalore under ₹1.5 Cr, family-friendly and safe…'
+            }
             className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
           />
+          {voice.supported && (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={voice.toggle}
+              aria-pressed={voice.enabled}
+              aria-label={
+                voice.enabled
+                  ? 'Voice replies on — Nestor reads answers aloud'
+                  : 'Voice replies off'
+              }
+              title={
+                voice.enabled ? 'Nestor reads answers aloud' : 'Voice replies off'
+              }
+              className={cn(
+                'text-muted-foreground',
+                voice.enabled && 'text-primary',
+              )}
+            >
+              {voice.enabled ? (
+                <Volume2 className="size-4" />
+              ) : (
+                <VolumeX className="size-4" />
+              )}
+            </Button>
+          )}
+          {dictation.supported && (
+            <Button
+              type="button"
+              size="icon"
+              variant={dictation.listening ? 'default' : 'ghost'}
+              onClick={toggleDictation}
+              aria-pressed={dictation.listening}
+              aria-label={
+                dictation.listening ? 'Stop dictation' : 'Speak your brief'
+              }
+              title={dictation.listening ? 'Stop dictation' : 'Speak your brief'}
+              className={cn(
+                !dictation.listening && 'text-muted-foreground',
+                dictation.listening && 'animate-pulse',
+              )}
+            >
+              <Mic className="size-4" />
+            </Button>
+          )}
           <Button
             type="submit"
             size="icon"
@@ -1183,10 +1323,20 @@ export function NestorPage() {
           </Button>
         </div>
         <p className="mt-1.5 px-1 text-center text-xs text-muted-foreground">
-          {input.trim().length > 0 && input.trim().length < MIN_QUERY_LENGTH
-            ? `Type at least ${MIN_QUERY_LENGTH} characters.`
-            : `Gemini reasons over real listings — picking, ranking and explaining every recommendation.`}
-          {input.length >= MAX_QUERY_LENGTH * 0.9 && (
+          {dictation.listening ? (
+            <span className="inline-flex items-center gap-1.5 text-primary">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
+                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+              </span>
+              Listening — tap the mic again when you're done.
+            </span>
+          ) : input.trim().length > 0 && input.trim().length < MIN_QUERY_LENGTH ? (
+            `Type at least ${MIN_QUERY_LENGTH} characters.`
+          ) : (
+            `Gemini reasons over real listings — picking, ranking and explaining every recommendation.`
+          )}
+          {!dictation.listening && input.length >= MAX_QUERY_LENGTH * 0.9 && (
             <span className="ml-1 text-muted-foreground/80">
               ({input.length}/{MAX_QUERY_LENGTH})
             </span>

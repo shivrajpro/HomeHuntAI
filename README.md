@@ -16,7 +16,7 @@ priorities, then helps you decide with confidence instead of spreadsheets.
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Edge%20Functions-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![Gemini](https://img.shields.io/badge/Google-Gemini%20Flash-4285F4?logo=googlegemini&logoColor=white)](https://ai.google.dev)
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
-[![Playwright](https://img.shields.io/badge/E2E-69%20tests%20%C3%97%206%20browsers-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![Playwright](https://img.shields.io/badge/E2E-70%20tests%20%C3%97%206%20browsers-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 
 </div>
 
@@ -50,6 +50,7 @@ across 2,000 listings.
 | Capability | What it does |
 | --- | --- |
 | **Natural-language briefs** | Free-text intent → listing type, city, ₹ budget (`cr` / `lakh` / `k`), BHK, property type, priorities |
+| **Voice-first** | **Speak** your brief (browser SpeechRecognition streams words into the composer, then auto-submits) and **hear** Nestor read the top recommendation back (SpeechSynthesis) — a spoken summary of the #1 pick's price, locality, fit and headline strength. A persisted voice-reply toggle auto-reads new answers; every answer also has a "Listen" button. Pure Web APIs, zero backend — and it degrades silently to the typed flow where the APIs are absent (e.g. Firefox has no SpeechRecognition) |
 | **Nestor's thinking** | A live, collapsible trace of the real pipeline — scope check → brief understood → catalogue scan → filter → shortlist → Gemini reasoning → validated picks — streamed with the actual counts as each stage runs, then kept as a replayable disclosure on the answer |
 | **Multi-turn memory** | Follow-ups refine the previous search instead of resetting — *"make it cheaper"* (×0.8), *"any city"*, *"I don't want apartments"* |
 | **Lifestyle-based search** | Life-stage phrases become priorities automatically — *"expecting a baby"*, *"my parents will stay with us"*, *"I work remotely"*, *"we have a dog"* |
@@ -72,6 +73,7 @@ across 2,000 listings.
 
 ### 🎨 Experience
 
+- Voice-first Nestor — talk your brief in and hear the top pick read back, using the browser's own Web Speech APIs (no backend, no extra dependency)
 - Light/dark theming with no flash-of-wrong-theme (light by default)
 - Mobile bottom tab bar + floating compare tray
 - Route-level code splitting (initial JS ~766 KB, down from ~6 MB)
@@ -231,6 +233,7 @@ HomeHuntAI/
 │   │   │   ├── reasoning.ts        # ⭐ Intent + ranking + explanation engine
 │   │   │   ├── fit-meter.ts        # Per-pick 0–100 breakdown bars
 │   │   │   ├── trade-off.ts        # "What if" simulator scoring (deterministic, offline)
+│   │   │   ├── use-voice.ts        # Voice-first: SpeechRecognition dictation + SpeechSynthesis read-back
 │   │   │   ├── decision-report.ts  # Structures an answer into a report
 │   │   │   └── decision-report-page.tsx
 │   │   └── properties/
@@ -262,7 +265,7 @@ HomeHuntAI/
 ├── scripts/
 │   ├── generate-listings.mjs       # Deterministic seed generator
 │   └── migrate-to-supabase.mjs     # One-off seed → Postgres migration
-├── tests/                          # 11 Playwright specs (69 tests)
+├── tests/                          # 12 Playwright specs (70 tests)
 ├── vercel.json                     # SPA rewrite
 └── vite.config.ts
 ```
@@ -421,15 +424,15 @@ so there's no separate install step.
 ### Tests
 
 ```bash
-npm test                         # Fast everyday run — 69 tests, Chromium only
-npm run test:all                 # Full pre-release sweep — 414 runs across 6 browser/device projects
+npm test                         # Fast everyday run — 70 tests, Chromium only
+npm run test:all                 # Full pre-release sweep — 420 runs across 6 browser/device projects
 npm run test:ui                  # Interactive mode
 npx playwright show-report       # Last HTML report
 ```
 
 Coverage spans every route, filters and search, Nestor (including Gemini-outage and
-rate-limit fallback), compare, shortlist, theming, 404s, per-page SEO titles, and an automated
-**axe-core accessibility scan**. The default run uses Chromium only for speed; `test:all`
+rate-limit fallback), the voice-first controls, compare, shortlist, theming, 404s, per-page SEO
+titles, and an automated **axe-core accessibility scan**. The default run uses Chromium only for speed; `test:all`
 (or `ALL_BROWSERS=1`, set automatically on CI) expands to the full matrix — Chromium, Firefox,
 WebKit, iPad Mini, Pixel 5, iPhone 12. The config auto-starts the dev server.
 
