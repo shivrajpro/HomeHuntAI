@@ -84,15 +84,23 @@ export function buildComparison(properties: Property[]): ComparisonResult {
   const maxAmenities = Math.max(...amenityCounts, 1)
   const amenityScores = amenityCounts.map((c) => Math.round((c / maxAmenities) * 100))
 
+  // Comparison enforces a single listing type, so the first entry is
+  // representative. Appreciation/resale is a buyer concern; skip it for rentals.
+  const isRent = properties[0]?.listingType === 'Rent'
+
   const rows: ComparisonRow[] = [
     buildRow('budget', 'Budget', priceLabels, priceScores),
     buildRow('commute', 'Commute', commuteScores.map((s) => `${s}/100`), commuteScores),
-    buildRow(
-      'investment',
-      'Investment Potential',
-      investmentScores.map((s) => `${s}/100`),
-      investmentScores,
-    ),
+    ...(isRent
+      ? []
+      : [
+          buildRow(
+            'investment',
+            'Investment Potential',
+            investmentScores.map((s) => `${s}/100`),
+            investmentScores,
+          ),
+        ]),
     buildRow(
       'family',
       'Family Friendliness',

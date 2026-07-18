@@ -104,13 +104,18 @@ export function buildFitMeter(
       caption: 'Schools, safety and family amenities',
       prioritized: p.includes('familyScore') || p.includes('safetyScore'),
     },
-    {
-      key: 'investment',
-      label: 'Investment',
-      score: property.aiInsights.investmentScore,
-      caption: 'Appreciation and rental-return potential',
-      prioritized: p.includes('investmentScore'),
-    },
+    // Appreciation/resale is a buyer concern; skip it for rentals.
+    ...(property.listingType === 'Rent'
+      ? []
+      : [
+          {
+            key: 'investment' as const,
+            label: 'Investment',
+            score: property.aiInsights.investmentScore,
+            caption: 'Appreciation and rental-return potential',
+            prioritized: p.includes('investmentScore'),
+          },
+        ]),
   ]
 
   // Surface the factors the user actually asked for, first — a stable sort so

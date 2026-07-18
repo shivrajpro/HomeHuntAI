@@ -29,7 +29,10 @@ function topInsights(property: Property): { label: string; score: number }[] {
   const entries: { label: string; score: number }[] = [
     { label: 'Walkable', score: aiInsights.walkability },
     { label: 'Family', score: aiInsights.familyScore },
-    { label: 'Investment', score: aiInsights.investmentScore },
+    // Appreciation/resale is a buyer concern; skip it for rentals.
+    ...(property.listingType === 'Rent'
+      ? []
+      : [{ label: 'Investment', score: aiInsights.investmentScore }]),
     { label: 'Commute', score: aiInsights.commuteScore },
     { label: 'Safe', score: aiInsights.safetyScore },
     { label: 'Green', score: aiInsights.greenScore },
