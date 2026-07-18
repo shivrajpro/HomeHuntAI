@@ -556,15 +556,15 @@ function TradeoffSimulator({
           >
             <div className="space-y-3 px-3 pb-3">
               <p className="text-[11px] text-muted-foreground">
-                Drag the budget or what matters most — the shortlist re-ranks
-                live, no AI call.
+                Adjust your max budget or how much each factor counts — the
+                shortlist re-ranks live, no AI call.
               </p>
 
-              {/* Budget ceiling. */}
+              {/* Control 1 — the budget *amount*: the most you'd spend. */}
               <div className="rounded-lg bg-background/60 p-2.5">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[11px] text-muted-foreground">
-                    Budget ceiling
+                <div className="mb-0.5 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-foreground">
+                    Max budget
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="text-xs font-semibold tabular-nums text-foreground">
@@ -585,6 +585,10 @@ function TradeoffSimulator({
                     )}
                   </span>
                 </div>
+                <p className="mb-2 text-[10px] leading-snug text-muted-foreground">
+                  The most you'd spend. Homes score on how comfortably they fit
+                  under it.
+                </p>
                 <input
                   type="range"
                   min={budgetRange.min}
@@ -592,21 +596,30 @@ function TradeoffSimulator({
                   step={budgetRange.step}
                   value={budget}
                   onChange={(e) => setBudget(Number(e.target.value))}
-                  aria-label="Budget ceiling"
+                  aria-label="Max budget"
                   className="h-1.5 w-full cursor-pointer accent-primary"
                 />
               </div>
 
-              {/* Priority importance weights. */}
-              <div className="grid gap-x-4 gap-y-2.5 rounded-lg bg-background/60 p-2.5 sm:grid-cols-2">
-                {sliders.map((s) => (
-                  <WeightSlider
-                    key={s.key}
-                    label={s.label}
-                    value={weights[s.key] ?? 0}
-                    onChange={(v) => setWeights((w) => ({ ...w, [s.key]: v }))}
-                  />
-                ))}
+              {/* Control 2 — the factor *weights*: how much each one counts. */}
+              <div className="rounded-lg bg-background/60 p-2.5">
+                <p className="text-[11px] font-medium text-foreground">
+                  What matters most
+                </p>
+                <p className="mb-2.5 text-[10px] leading-snug text-muted-foreground">
+                  How much each factor counts toward the fit score — including
+                  affordability (price vs. your max budget).
+                </p>
+                <div className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
+                  {sliders.map((s) => (
+                    <WeightSlider
+                      key={s.key}
+                      label={s.label}
+                      value={weights[s.key] ?? 0}
+                      onChange={(v) => setWeights((w) => ({ ...w, [s.key]: v }))}
+                    />
+                  ))}
+                </div>
               </div>
 
               {dirty && (

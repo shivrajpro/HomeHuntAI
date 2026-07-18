@@ -66,10 +66,11 @@ test.describe('Nestor', () => {
     await expect(toggle).toBeVisible()
     await toggle.click()
 
-    // Its controls are present: a budget ceiling and importance sliders.
-    const budgetSlider = page.getByLabel('Budget ceiling', { exact: true })
+    // Its controls are present: a max-budget amount and importance sliders.
+    const budgetSlider = page.getByLabel('Max budget', { exact: true })
     await expect(budgetSlider).toBeVisible()
     await expect(page.getByText(/re-ranks\s+live, no AI call/i)).toBeVisible()
+    await expect(page.getByText('What matters most')).toBeVisible()
 
     // Dragging the budget to its ceiling dirties the state (a delta chip and a
     // reset affordance appear) — proof the re-rank ran client-side, no network.

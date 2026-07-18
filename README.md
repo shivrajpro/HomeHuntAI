@@ -57,7 +57,7 @@ across 2,000 listings.
 | **Confidence basis** | Every fit % is grounded in a sentence: top-priority match, budget headroom, and caveats |
 | **Near-miss explanations** | *"Why weren't these recommended?"* — strong homes that missed by **exactly one** flexible constraint, with the reason |
 | **Visual fit meter** | Per-pick breakdown of Budget, Commute, Lifestyle, Family and Investment as 0–100 bars |
-| **Trade-off simulator** | "What if" sliders — drag the budget ceiling (+₹20 L) or a priority's importance and the shortlist re-scores and re-ranks **live**, arrows showing each home's movement. Deterministic, so it runs instantly and fully offline — no Gemini call |
+| **Trade-off simulator** | "What if" sliders — drag your max budget (+₹20 L) or how much each factor (affordability, commute, family…) counts, and the shortlist re-scores and re-ranks **live**, arrows showing each home's movement. Deterministic, so it runs instantly and fully offline — no Gemini call |
 | **Editable priorities** | Remove/add priority chips to re-rank in place — no re-parsing |
 | **Scope guard** | Off-topic first messages get a redirect instead of ranking the whole catalogue |
 
@@ -202,10 +202,11 @@ text produces the answer, so the product works end-to-end with Gemini fully down
 
 Because shortlisting is deterministic, the **trade-off simulator**
 (`src/features/nestor/trade-off.ts`) reuses it as a live sandbox: the answer keeps its
-hydrated shortlist, and the UI re-scores that pool client-side as the user drags a budget
-ceiling or per-priority importance sliders — blending the same seven locality scores with
-the fit meter's budget-fit curve — so the ranking re-orders instantly with no network or
-Gemini call, and a slider change can promote a candidate above the current top picks.
+hydrated shortlist, and the UI re-scores that pool client-side as the user drags their max
+budget (an amount) or how much each factor counts (importance weights) — blending the same
+seven locality scores with the fit meter's budget-fit curve — so the ranking re-orders
+instantly with no network or Gemini call, and a slider change can promote a candidate above
+the current top picks.
 
 ---
 

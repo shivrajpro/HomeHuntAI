@@ -58,7 +58,10 @@ export function buildSimSliders(intent: NestorIntent): SimSlider[] {
     defaultWeight: n > 0 ? Math.round((100 * (n - i)) / n) : 0,
   }))
   return [
-    { key: 'budget', label: 'Budget', defaultWeight: intent.maxPrice != null ? 70 : 40 },
+    // "Affordability", not "Budget" — this is the *importance* of staying cheap
+    // relative to the other factors, a distinct control from the budget-ceiling
+    // *amount* slider the UI shows separately.
+    { key: 'budget', label: 'Affordability', defaultWeight: intent.maxPrice != null ? 70 : 40 },
     ...prioritySliders,
   ]
 }
