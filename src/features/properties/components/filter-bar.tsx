@@ -176,39 +176,67 @@ export function FilterBar({
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap">
-          <select {...register('listingType')} aria-label="Buy or Rent" className={selectClass}>
-            <option value="Buy">Buy</option>
-            <option value="Rent">Rent</option>
-          </select>
+          <SelectMenu
+            ariaLabel="Buy or Rent"
+            value={values.listingType}
+            onChange={(v) =>
+              setValue('listingType', v as ListingType, {
+                shouldDirty: true,
+                shouldTouch: true,
+              })
+            }
+            options={[
+              { value: 'Buy', label: 'Buy' },
+              { value: 'Rent', label: 'Rent' },
+            ]}
+          />
 
-          <select {...register('region')} aria-label="City" className={selectClass}>
-            <option value="">Any city</option>
-            {REGIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+          <SelectMenu
+            ariaLabel="City"
+            value={values.region}
+            onChange={(v) =>
+              setValue('region', v as '' | Region, {
+                shouldDirty: true,
+                shouldTouch: true,
+              })
+            }
+            options={[
+              { value: '', label: 'Any city' },
+              ...REGIONS.map((r) => ({ value: r, label: r })),
+            ]}
+          />
 
-          <select {...register('propertyType')} aria-label="Property type" className={selectClass}>
-            <option value="">Any type</option>
-            {PROPERTY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <SelectMenu
+            ariaLabel="Property type"
+            value={values.propertyType}
+            onChange={(v) =>
+              setValue('propertyType', v as '' | PropertyType, {
+                shouldDirty: true,
+                shouldTouch: true,
+              })
+            }
+            options={[
+              { value: '', label: 'Any type' },
+              ...PROPERTY_TYPES.map((t) => ({ value: t, label: t })),
+            ]}
+          />
 
           <BhkMultiSelect selected={selectedBhks} onChange={setSelectedBhks} />
 
-          <select {...register('maxPrice')} aria-label="Maximum price" className={selectClass}>
-            <option value="">Max price</option>
-            {priceOptions.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+          <SelectMenu
+            ariaLabel="Maximum price"
+            value={values.maxPrice}
+            onChange={(v) =>
+              setValue('maxPrice', v, { shouldDirty: true, shouldTouch: true })
+            }
+            options={[
+              { value: '', label: 'Max price' },
+              ...priceOptions.map((p) => ({
+                value: String(p.value),
+                label: p.label,
+              })),
+            ]}
+          />
 
           {hasActive && (
             <Button
@@ -226,6 +254,98 @@ export function FilterBar({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+interface SelectOption {
+  value: string
+  label: string
+}
+
+/**
+ * Single-select dropdown styled to match {@link BhkMultiSelect} — a custom
+ * popover rather than a native `<select>`, so the option menu carries the same
+ * rounded rows, hover states, theme colors, and checkmark as the BHK picker
+ * (native `<option>` menus can't be styled). An option whose `value` is ''
+ * acts as the "any"/placeholder and shows muted trigger text when active.
+ */
+function SelectMenu({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: string
+  options: SelectOption[]
+  onChange: (value: string) => void
+  ariaLabel: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click or Escape so the popover behaves like a native menu.
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const isPlaceholder = value === ''
+  const label = options.find((o) => o.value === value)?.label ?? options[0]?.label
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(selectClass, 'flex w-full items-center justify-between gap-2')}
+      >
+        <span className={cn('truncate', isPlaceholder && 'text-muted-foreground')}>
+          {label}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute z-20 mt-1 min-w-40 rounded-md border border-border/60 bg-popover p-1 shadow-md"
+        >
+          {options.map((o) => {
+            const isSelected = o.value === value
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  onChange(o.value)
+                  setOpen(false)
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+              >
+                <span>{o.label}</span>
+                {isSelected && <Check className="size-4 text-primary" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
