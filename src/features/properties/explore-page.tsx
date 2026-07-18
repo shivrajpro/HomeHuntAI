@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { SearchX } from 'lucide-react'
+import { Loader2, SearchX } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { FilterBar } from '@/features/properties/components/filter-bar'
@@ -59,7 +59,10 @@ export function ExplorePage() {
   useDocumentTitle('Explore homes · HomeHunt AI')
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [limit, setLimit] = useState(INITIAL_LIMIT)
-  const { data, isLoading, isError } = useProperties(filters, limit)
+  const { data, isLoading, isError, isPlaceholderData } = useProperties(
+    filters,
+    limit,
+  )
 
   // Reset paging whenever the filters change so a new search starts small.
   useEffect(() => {
@@ -71,7 +74,8 @@ export function ExplorePage() {
   const hasMore = properties ? properties.length < total : false
   // The result count is only meaningful once the visitor has narrowed things
   // down — showing "1,000 homes" over an unfiltered catalogue is just noise.
-  const hasFilters = Object.keys(filters).length > 0
+  // Buy/Rent (`listingType`) is always set, so it doesn't count as narrowing.
+  const hasFilters = Object.keys(filters).some((key) => key !== 'listingType')
 
   return (
     <div className="space-y-6">
@@ -119,9 +123,17 @@ export function ExplorePage() {
               <Button
                 variant="outline"
                 size="lg"
+                disabled={isPlaceholderData}
                 onClick={() => setLimit((l) => l + LOAD_MORE_STEP)}
               >
-                Load more homes
+                {isPlaceholderData ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading…
+                  </>
+                ) : (
+                  'Load more homes'
+                )}
               </Button>
             </div>
           )}

@@ -158,8 +158,9 @@ function PickCard({
   const isRent = property.listingType === 'Rent'
   const [showFitMeter, setShowFitMeter] = useState(false)
   const fitBars = buildFitMeter(property, intent)
-  const { isSelected, toggle: toggleCompare, canAddMore } = useCompare()
+  const { isSelected, toggle: toggleCompare, canAdd, compareType } = useCompare()
   const comparing = isSelected(property.id)
+  const addable = canAdd(property.listingType)
 
   return (
     <div className="group relative flex gap-3 rounded-xl border border-border/60 bg-background p-3 transition-colors hover:border-primary/40 focus-within:border-primary/40">
@@ -258,15 +259,17 @@ function PickCard({
               lets the user jump to /compare, exactly as from Explore. */}
           <button
             type="button"
-            onClick={() => toggleCompare(property.id)}
-            disabled={!comparing && !canAddMore}
+            onClick={() => toggleCompare(property.id, property.listingType)}
+            disabled={!comparing && !addable}
             aria-pressed={comparing}
             title={
               comparing
                 ? 'Remove from comparison'
-                : canAddMore
-                  ? 'Add to comparison'
-                  : 'You can compare up to 3 homes at a time'
+                : !addable
+                  ? 'You can compare up to 3 homes at a time'
+                  : compareType && compareType !== property.listingType
+                    ? `Start a new comparison of ${property.listingType} homes`
+                    : 'Add to comparison'
             }
             className={cn(
               'flex items-center gap-1 text-[11px] font-medium outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50',

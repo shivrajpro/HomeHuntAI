@@ -146,7 +146,7 @@ export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const ids = parseIds(searchParams)
   const { data: properties, isLoading } = usePropertiesByIds(ids)
-  const { remove: removeFromCompare } = useCompare()
+  const { remove: removeFromCompare, clear: clearCompare } = useCompare()
 
   if (ids.length < 2) {
     return (
@@ -159,7 +159,13 @@ export function ComparePage() {
 
   if (isLoading || !properties) return <LoadingState />
 
-  if (properties.length < 2) {
+  // A comparison is always within a single listing type. Guard against a stale
+  // or shared `?ids=` URL that mixes Buy and Rent by keeping only the homes that
+  // match the first listing's type — never compare a purchase against a rental.
+  const listingType = properties[0]?.listingType
+  const sameTypeProperties = properties.filter((p) => p.listingType === listingType)
+
+  if (sameTypeProperties.length < 2) {
     return (
       <PromptState
         title="Not enough homes to compare"
@@ -168,12 +174,19 @@ export function ComparePage() {
     )
   }
 
-  const comparison = buildComparison(properties)
+  const comparison = buildComparison(sameTypeProperties)
 
   function handleRemove(id: string) {
-    removeFromCompare(id)
     const next = ids.filter((v) => v !== id)
-    setSearchParams(next.length ? { ids: next.join(',') } : {})
+    // Removing a home from a 2-way comparison ends the comparison — clear the
+    // whole selection rather than stranding a lone home in the floating tray.
+    if (next.length < 2) {
+      clearCompare()
+      setSearchParams({})
+    } else {
+      removeFromCompare(id)
+      setSearchParams({ ids: next.join(',') })
+    }
   }
 
   return (
@@ -185,7 +198,7 @@ export function ComparePage() {
     >
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Comparing {properties.length} homes
+          Comparing {sameTypeProperties.length} homes
         </h1>
         <p className="mt-1 text-muted-foreground">
           Weighed equally across budget, commute, investment, family fit, lifestyle and
@@ -195,9 +208,11 @@ export function ComparePage() {
 
       <div
         className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${properties.length}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: `repeat(${sameTypeProperties.length}, minmax(0, 1fr))`,
+        }}
       >
-        {properties.map((property, i) => (
+        {sameTypeProperties.map((property, i) => (
           <PropertyColumn
             key={property.id}
             property={property}
@@ -212,7 +227,11 @@ export function ComparePage() {
         <div className="overflow-x-auto">
           <div className="min-w-[36rem]">
             {comparison.rows.map((row) => (
-              <ComparisonRowView key={row.key} row={row} count={properties.length} />
+              <ComparisonRowView
+                key={row.key}
+                row={row}
+                count={sameTypeProperties.length}
+              />
             ))}
           </div>
         </div>

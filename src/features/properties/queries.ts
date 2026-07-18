@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import {
   fetchProperties,
@@ -44,6 +44,9 @@ export function useProperties(filters: PropertyFilters = {}, limit?: number) {
   return useQuery({
     queryKey: propertyKeys.list(filters, limit),
     queryFn: () => fetchProperties(filters, limit),
+    // Keep the previous page on screen while a larger `limit` loads so
+    // "Load more" appends rather than tearing the whole grid down to skeletons.
+    placeholderData: keepPreviousData,
   })
 }
 
