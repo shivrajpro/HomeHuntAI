@@ -1351,7 +1351,12 @@ export function NestorPage() {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-0 mt-4 bg-background/80 py-3 backdrop-blur-xl"
+        // z-30 keeps the composer above the message list (header/nav are z-40,
+        // the compare tray z-50). Without it, the tall answer sliding up under
+        // the sticky bar during the post-results smooth scroll hit-tests over
+        // the composer — its link overlays (z-10) and "View in Explore" button
+        // steal a tap meant for the voice/mic/send controls and navigate away.
+        className="sticky bottom-0 z-30 mt-4 bg-background/80 py-3 backdrop-blur-xl"
       >
         <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card p-2 shadow-sm focus-within:border-primary/40">
           <textarea
