@@ -109,7 +109,7 @@ export function FilterBar({
     bhksFromParams(searchParams),
   )
 
-  const { register, watch, reset } = useForm<FilterForm>({
+  const { register, watch, reset, setValue } = useForm<FilterForm>({
     defaultValues: initialForm,
   })
 
@@ -157,10 +157,22 @@ export function FilterBar({
           <input
             {...register('search')}
             type="text"
-            aria-label="Search locality, project, or vibe"
-            placeholder="Search locality, project, or vibe…"
-            className={cn(selectClass, 'w-full pl-9')}
+            aria-label="Search society name, locality, BHK, or apartment/villa"
+            placeholder="Search society name, locality, BHK, or apartment/villa…"
+            className={cn(selectClass, 'w-full pl-9', values.search && 'pr-9')}
           />
+          {values.search && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() =>
+                setValue('search', '', { shouldDirty: true, shouldTouch: true })
+              }
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" />
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap">
