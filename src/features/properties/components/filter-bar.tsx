@@ -29,7 +29,7 @@ interface FilterForm {
 const EMPTY: FilterForm = {
   search: '',
   region: '',
-  listingType: '',
+  listingType: 'Buy',
   propertyType: '',
   maxPrice: '',
 }
@@ -60,7 +60,7 @@ function formFromParams(params: URLSearchParams): FilterForm {
   return {
     search: f.search ?? '',
     region: f.region ?? '',
-    listingType: f.listingType ?? '',
+    listingType: f.listingType ?? 'Buy',
     propertyType: f.propertyType ?? '',
     maxPrice: f.maxPrice != null ? String(f.maxPrice) : '',
   }
@@ -145,7 +145,9 @@ export function FilterBar({
   ])
 
   const hasActive =
-    Object.values(values).some((v) => v !== '') || selectedBhks.length > 0
+    Object.entries(values).some(
+      ([key, v]) => v !== EMPTY[key as keyof FilterForm],
+    ) || selectedBhks.length > 0
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">
@@ -163,7 +165,6 @@ export function FilterBar({
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap">
           <select {...register('listingType')} aria-label="Buy or Rent" className={selectClass}>
-            <option value="">Buy / Rent</option>
             <option value="Buy">Buy</option>
             <option value="Rent">Rent</option>
           </select>

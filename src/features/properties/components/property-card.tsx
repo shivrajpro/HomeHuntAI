@@ -43,8 +43,9 @@ function topInsights(property: Property): { label: string; score: number }[] {
 export function PropertyCard({ property }: { property: Property }) {
   const isRent = property.listingType === 'Rent'
   const insights = topInsights(property)
-  const { isSelected, toggle, canAddMore } = useCompare()
+  const { isSelected, toggle, canAdd, compareType } = useCompare()
   const selected = isSelected(property.id)
+  const addable = canAdd(property.listingType)
   const { isSaved, toggle: toggleShortlist } = useShortlist()
   const saved = isSaved(property.id)
 
@@ -97,15 +98,17 @@ export function PropertyCard({ property }: { property: Property }) {
 
         <button
           type="button"
-          onClick={() => toggle(property.id)}
-          disabled={!selected && !canAddMore}
+          onClick={() => toggle(property.id, property.listingType)}
+          disabled={!selected && !addable}
           aria-pressed={selected}
           title={
             selected
               ? 'Remove from comparison'
-              : canAddMore
-                ? 'Add to comparison'
-                : 'You can compare up to 3 homes at a time'
+              : !addable
+                ? 'You can compare up to 3 homes at a time'
+                : compareType && compareType !== property.listingType
+                  ? `Start a new comparison of ${property.listingType} homes`
+                  : 'Add to comparison'
           }
           className={cn(
             'absolute bottom-2 right-2 z-20 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm backdrop-blur transition-colors disabled:cursor-not-allowed disabled:opacity-50',

@@ -122,7 +122,7 @@ function DetailSkeleton() {
 export function PropertyDetailPage() {
   const { id = '' } = useParams()
   const { data: property, isLoading, isError } = useProperty(id)
-  const { isSelected, toggle, canAddMore } = useCompare()
+  const { isSelected, toggle, canAdd, compareType } = useCompare()
   const { isSaved, toggle: toggleShortlist } = useShortlist()
 
   useDocumentTitle(
@@ -328,8 +328,17 @@ export function PropertyDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => toggle(property.id)}
-                  disabled={!isSelected(property.id) && !canAddMore}
+                  onClick={() => toggle(property.id, property.listingType)}
+                  disabled={
+                    !isSelected(property.id) && !canAdd(property.listingType)
+                  }
+                  title={
+                    isSelected(property.id) ||
+                    !compareType ||
+                    compareType === property.listingType
+                      ? undefined
+                      : `Start a new comparison of ${property.listingType} homes`
+                  }
                   className={cn(
                     isSelected(property.id) && 'border-primary/40 text-primary',
                   )}
