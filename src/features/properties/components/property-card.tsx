@@ -77,7 +77,7 @@ export function PropertyCard({ property }: { property: Property }) {
         >
           {property.listingType}
         </span>
-        {property.reraApproved && (
+        {property.listingType === 'Buy' && property.reraApproved && (
           <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-success/85 px-2.5 py-1 text-xs font-medium text-background backdrop-blur">
             <ShieldCheck className="size-3" />
             RERA

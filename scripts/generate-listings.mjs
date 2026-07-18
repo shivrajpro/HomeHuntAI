@@ -277,7 +277,8 @@ function buildListing(region, market) {
   const facing = pick(FACING)
   const furnishing = isPlot ? 'Unfurnished' : weighted(FURNISHING)
   const parking = isPlot ? weighted([['Open', 60], ['None', 40]]) : weighted(PARKING)
-  const rera = rnd() < (age <= 6 ? 0.82 : 0.5)
+  // RERA regulates sale/purchase of projects, not rentals — only Buy listings can be RERA-approved.
+  const rera = listingType === 'Buy' && rnd() < (age <= 6 ? 0.82 : 0.5)
   const ownership = weighted(OWNERSHIP)
 
   // Coordinates (jitter around locality center)
