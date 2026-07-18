@@ -288,6 +288,55 @@ export interface NestorAnswer {
   reasonedBy?: 'gemini' | 'local'
 }
 
+// --- Live reasoning trace ("Nestor's thinking") ----------------------------
+// The pipeline in `runNestor` is a sequence of awaited stages; each stage
+// reports itself through an optional `NestorTrace` callback the moment it
+// starts and finishes, so the UI can stream the real work (scope → intent →
+// catalogue scan → filter → shortlist → reasoning → validation) as it happens
+// rather than showing an opaque spinner. The trace is purely observational —
+// it never changes what the pipeline produces, and every number it surfaces is
+// the actual count that stage worked with.
+
+/** The ordered stages of a Nestor turn, in the sequence they run. */
+export type NestorTraceStep =
+  | 'scope'
+  | 'intent'
+  | 'catalogue'
+  | 'filter'
+  | 'shortlist'
+  | 'reason'
+  | 'validate'
+
+export interface NestorTraceEvent {
+  step: NestorTraceStep
+  /** `active` when the stage begins, `done` when it finishes. */
+  status: 'active' | 'done'
+  /** Short present/past-tense label, e.g. "Scanning listings" / "Listings scanned". */
+  label: string
+  /** The concrete result of the stage, e.g. "2,000 in range", "top 12". */
+  detail?: string
+}
+
+/** A sink the pipeline pushes trace events into as each stage runs. */
+export type NestorTrace = (event: NestorTraceEvent) => void
+
+const groupCount = (n: number) => new Intl.NumberFormat('en-IN').format(n)
+
+/** A compact one-line summary of a parsed intent, for the trace's intent step. */
+function describeIntent(intent: NestorIntent): string {
+  const parts: string[] = []
+  if (intent.listingType) parts.push(intent.listingType)
+  if (intent.region) parts.push(intent.region)
+  if (intent.minBhk != null) parts.push(`${intent.minBhk}+ BHK`)
+  if (intent.propertyType) parts.push(intent.propertyType)
+  if (intent.maxPrice != null) parts.push(`≤ ${formatINR(intent.maxPrice)}`)
+  const priorities = intent.priorities
+    .slice(0, 2)
+    .map((d) => DIMENSION_META[d].label.toLowerCase())
+  if (priorities.length) parts.push(priorities.join(' + '))
+  return parts.length ? parts.join(' · ') : 'balanced home search'
+}
+
 // --- Intent parsing --------------------------------------------------------
 
 function has(text: string, ...words: string[]): boolean {
@@ -696,15 +745,42 @@ async function deriveIntentRemote(
 export async function deriveIntentAsync(
   rawText: string,
   prev?: NestorIntent,
+  onTrace?: NestorTrace,
 ): Promise<{ intent: NestorIntent; refined: boolean; offTopic: boolean }> {
+  onTrace?.({ step: 'scope', status: 'active', label: 'Checking scope' })
   if (!prev && isLikelyOutOfScope(rawText)) {
+    onTrace?.({
+      step: 'scope',
+      status: 'done',
+      label: 'Out of scope',
+      detail: 'Not a home search',
+    })
     return { ...deriveIntent(rawText, prev), offTopic: true }
   }
+  onTrace?.({ step: 'scope', status: 'done', label: 'In scope' })
+
+  onTrace?.({ step: 'intent', status: 'active', label: 'Reading your brief' })
   const remote = await deriveIntentRemote(rawText, prev)
-  if (remote) return remote
-  const local = deriveIntent(rawText, prev)
-  const offTopic = !prev && isLikelyOutOfScope(rawText)
-  return { ...local, offTopic }
+  const result = remote ?? {
+    ...deriveIntent(rawText, prev),
+    offTopic: !prev && isLikelyOutOfScope(rawText),
+  }
+  if (result.offTopic) {
+    onTrace?.({
+      step: 'intent',
+      status: 'done',
+      label: 'Not a home search',
+      detail: 'Redirecting',
+    })
+  } else {
+    onTrace?.({
+      step: 'intent',
+      status: 'done',
+      label: result.refined ? 'Brief refined' : 'Brief understood',
+      detail: describeIntent(result.intent),
+    })
+  }
+  return result
 }
 
 // --- Candidate selection + ranking -----------------------------------------
@@ -1182,6 +1258,7 @@ async function answerFor(
   rawIntent: NestorIntent,
   refined: boolean,
   topN: number,
+  onTrace?: NestorTrace,
 ): Promise<NestorAnswer> {
   // An empty priority list would divide by zero in `fitScore`; fall back to the
   // balanced default (can happen if the user removes every priority chip).
@@ -1189,8 +1266,25 @@ async function answerFor(
     ? rawIntent
     : { ...rawIntent, priorities: DEFAULT_PRIORITIES, usedDefaultPriorities: true }
 
+  onTrace?.({ step: 'catalogue', status: 'active', label: 'Scanning listings' })
   const pool = await fetchRankingPool(poolBounds(intent))
+  onTrace?.({
+    step: 'catalogue',
+    status: 'done',
+    label: 'Listings scanned',
+    detail: `${groupCount(pool.length)} in range`,
+  })
+
+  onTrace?.({ step: 'filter', status: 'active', label: 'Applying your filters' })
   const { list, relaxed } = selectCandidates(intent, pool)
+  onTrace?.({
+    step: 'filter',
+    status: 'done',
+    label: relaxed.length ? 'Filtered (widened)' : 'Filtered to matches',
+    detail: `${groupCount(list.length)} match${
+      relaxed.length ? ` · loosened ${relaxed.join(', ')}` : ''
+    }`,
+  })
 
   const ranked = list
     .map((property) => ({
@@ -1206,12 +1300,20 @@ async function answerFor(
   // Hydrate the shortlist up front: Gemini needs the full listing detail to
   // reason with, and whichever homes it picks are then ready to render with
   // no second round trip.
+  onTrace?.({ step: 'shortlist', status: 'active', label: 'Ranking by fit' })
   const shortlist = ranked.slice(0, Math.max(topN, REASONING_CANDIDATE_COUNT))
   const hydratedCandidates = await hydrate(shortlist.map((r) => r.property.id))
   const candidates = shortlist
     .map((r) => hydratedCandidates.get(r.property.id))
     .filter((p): p is Property => p != null)
+  onTrace?.({
+    step: 'shortlist',
+    status: 'done',
+    label: 'Ranked by fit',
+    detail: `top ${candidates.length}`,
+  })
 
+  onTrace?.({ step: 'reason', status: 'active', label: 'Weighing the shortlist' })
   const remote =
     candidates.length > 0
       ? await reasonRemote(intent, candidates, {
@@ -1263,6 +1365,29 @@ async function answerFor(
     })
     summary = buildSummary(intent, relaxed, refined)
   }
+  onTrace?.({
+    step: 'reason',
+    status: 'done',
+    label: reasonedBy === 'gemini' ? 'Reasoned by Gemini' : 'Reasoned offline',
+    detail:
+      reasonedBy === 'gemini'
+        ? `Gemini · ${picks.length} pick${picks.length === 1 ? '' : 's'}`
+        : `deterministic fallback · ${picks.length} pick${
+            picks.length === 1 ? '' : 's'
+          }`,
+  })
+
+  // Every returned id was validated against the shortlist we sent (in the
+  // picks mapping above and again server-side), so no pick can be an invented
+  // home — surface that guarantee as the closing step.
+  onTrace?.({
+    step: 'validate',
+    status: 'done',
+    label: 'Picks validated',
+    detail: picks.length
+      ? `${picks.length} grounded in real listings`
+      : 'no match',
+  })
 
   // Near-misses come after the final picks are known: Gemini may choose a
   // different top 3 than the deterministic ranking would, and a home can't be
@@ -1360,11 +1485,16 @@ export async function runNestor(
   rawText: string,
   prevIntent?: NestorIntent,
   topN = 3,
+  onTrace?: NestorTrace,
 ): Promise<NestorAnswer> {
-  const { intent, refined, offTopic } = await deriveIntentAsync(rawText, prevIntent)
+  const { intent, refined, offTopic } = await deriveIntentAsync(
+    rawText,
+    prevIntent,
+    onTrace,
+  )
   if (offTopic && !prevIntent) return offTopicAnswer(rawText)
   if (prevIntent && !refined) return noNewSignalAnswer(prevIntent, rawText)
-  return answerFor(intent, refined, topN)
+  return answerFor(intent, refined, topN, onTrace)
 }
 
 /**
@@ -1377,8 +1507,9 @@ export async function runNestor(
 export function rerankIntent(
   intent: NestorIntent,
   topN = 3,
+  onTrace?: NestorTrace,
 ): Promise<NestorAnswer> {
-  return answerFor(intent, true, topN)
+  return answerFor(intent, true, topN, onTrace)
 }
 
 /** Project an intent onto the subset of fields the Explore filters understand. */

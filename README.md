@@ -50,6 +50,7 @@ across 2,000 listings.
 | Capability | What it does |
 | --- | --- |
 | **Natural-language briefs** | Free-text intent → listing type, city, ₹ budget (`cr` / `lakh` / `k`), BHK, property type, priorities |
+| **Nestor's thinking** | A live, collapsible trace of the real pipeline — scope check → brief understood → catalogue scan → filter → shortlist → Gemini reasoning → validated picks — streamed with the actual counts as each stage runs, then kept as a replayable disclosure on the answer |
 | **Multi-turn memory** | Follow-ups refine the previous search instead of resetting — *"make it cheaper"* (×0.8), *"any city"*, *"I don't want apartments"* |
 | **Lifestyle-based search** | Life-stage phrases become priorities automatically — *"expecting a baby"*, *"my parents will stay with us"*, *"I work remotely"*, *"we have a dog"* |
 | **Why this home** | Plain-language strengths drawn from *your* priorities first — raw scores stay internal |
@@ -474,6 +475,11 @@ brief → isLikelyOutOfScope? ──yes──► redirect reply (no network)
              ▼
    picks + near-misses (deterministic) → NestorAnswer
 ```
+
+Each stage above also reports itself through an optional `NestorTrace` callback
+(`runNestor(..., onTrace)`) the moment it starts and finishes, carrying the real
+count it worked with. That's what powers the **"Nestor's thinking"** panel — the
+trace is purely observational and never alters what the pipeline produces.
 
 ---
 
