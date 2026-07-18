@@ -29,7 +29,10 @@ function topInsights(property: Property): { label: string; score: number }[] {
   const entries: { label: string; score: number }[] = [
     { label: 'Walkable', score: aiInsights.walkability },
     { label: 'Family', score: aiInsights.familyScore },
-    { label: 'Investment', score: aiInsights.investmentScore },
+    // Appreciation/resale is a buyer concern; skip it for rentals.
+    ...(property.listingType === 'Rent'
+      ? []
+      : [{ label: 'Investment', score: aiInsights.investmentScore }]),
     { label: 'Commute', score: aiInsights.commuteScore },
     { label: 'Safe', score: aiInsights.safetyScore },
     { label: 'Green', score: aiInsights.greenScore },
@@ -74,7 +77,7 @@ export function PropertyCard({ property }: { property: Property }) {
         >
           {property.listingType}
         </span>
-        {property.reraApproved && (
+        {property.listingType === 'Buy' && property.reraApproved && (
           <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-success/85 px-2.5 py-1 text-xs font-medium text-background backdrop-blur">
             <ShieldCheck className="size-3" />
             RERA

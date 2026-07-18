@@ -179,7 +179,7 @@ export function PropertyDetailPage() {
               <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
                 {property.propertyType}
               </span>
-              {property.reraApproved && (
+              {property.listingType === 'Buy' && property.reraApproved && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
                   <ShieldCheck className="size-3" />
                   RERA approved
