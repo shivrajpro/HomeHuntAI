@@ -16,7 +16,7 @@ priorities, then helps you decide with confidence instead of spreadsheets.
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Edge%20Functions-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![Gemini](https://img.shields.io/badge/Google-Gemini%20Flash-4285F4?logo=googlegemini&logoColor=white)](https://ai.google.dev)
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
-[![Playwright](https://img.shields.io/badge/E2E-65%20tests%20%C3%97%206%20browsers-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![Playwright](https://img.shields.io/badge/E2E-69%20tests%20%C3%97%206%20browsers-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 
 </div>
 
@@ -57,6 +57,7 @@ across 2,000 listings.
 | **Confidence basis** | Every fit % is grounded in a sentence: top-priority match, budget headroom, and caveats |
 | **Near-miss explanations** | *"Why weren't these recommended?"* — strong homes that missed by **exactly one** flexible constraint, with the reason |
 | **Visual fit meter** | Per-pick breakdown of Budget, Commute, Lifestyle, Family and Investment as 0–100 bars |
+| **Trade-off simulator** | "What if" sliders — drag your max budget (+₹20 L) or how much each factor (affordability, commute, family…) counts, and the shortlist re-scores and re-ranks **live**, arrows showing each home's movement. Deterministic, so it runs instantly and fully offline — no Gemini call |
 | **Editable priorities** | Remove/add priority chips to re-rank in place — no re-parsing |
 | **Scope guard** | Off-topic first messages get a redirect instead of ranking the whole catalogue |
 
@@ -199,6 +200,14 @@ arithmetic with exact rupee amounts, not judgment. And when `nestor-reason` is
 unavailable, this same weighted ranking plus template-based strengths/trade-off/confidence
 text produces the answer, so the product works end-to-end with Gemini fully down.
 
+Because shortlisting is deterministic, the **trade-off simulator**
+(`src/features/nestor/trade-off.ts`) reuses it as a live sandbox: the answer keeps its
+hydrated shortlist, and the UI re-scores that pool client-side as the user drags their max
+budget (an amount) or how much each factor counts (importance weights) — blending the same
+seven locality scores with the fit meter's budget-fit curve — so the ranking re-orders
+instantly with no network or Gemini call, and a slider change can promote a candidate above
+the current top picks.
+
 ---
 
 ## 📁 Project Structure
@@ -221,6 +230,7 @@ HomeHuntAI/
 │   │   │   ├── nestor-page.tsx     # Chat UI, PickCard, priority editor
 │   │   │   ├── reasoning.ts        # ⭐ Intent + ranking + explanation engine
 │   │   │   ├── fit-meter.ts        # Per-pick 0–100 breakdown bars
+│   │   │   ├── trade-off.ts        # "What if" simulator scoring (deterministic, offline)
 │   │   │   ├── decision-report.ts  # Structures an answer into a report
 │   │   │   └── decision-report-page.tsx
 │   │   └── properties/
@@ -252,7 +262,7 @@ HomeHuntAI/
 ├── scripts/
 │   ├── generate-listings.mjs       # Deterministic seed generator
 │   └── migrate-to-supabase.mjs     # One-off seed → Postgres migration
-├── tests/                          # 11 Playwright specs (66 tests)
+├── tests/                          # 11 Playwright specs (69 tests)
 ├── vercel.json                     # SPA rewrite
 └── vite.config.ts
 ```
@@ -411,8 +421,8 @@ so there's no separate install step.
 ### Tests
 
 ```bash
-npm test                         # Fast everyday run — 65 tests, Chromium only
-npm run test:all                 # Full pre-release sweep — 390 runs across 6 browser/device projects
+npm test                         # Fast everyday run — 69 tests, Chromium only
+npm run test:all                 # Full pre-release sweep — 414 runs across 6 browser/device projects
 npm run test:ui                  # Interactive mode
 npx playwright show-report       # Last HTML report
 ```
