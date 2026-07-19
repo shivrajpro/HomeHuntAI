@@ -304,8 +304,6 @@ HomeHuntAI/
 
 ## 📸 Screenshots
 
-> _Replace the placeholders below with real captures._
-
 | Nestor | Explore |
 | --- | --- |
 | <img src="docs/screenshots/nestor.png" alt="Nestor ranking homes with fit breakdowns" width="100%"> | <img src="docs/screenshots/explore.png" alt="Explore grid with filters" width="100%"> |
