@@ -28,6 +28,10 @@ test.describe('Accessibility', () => {
     test(`${name} has no serious/critical axe violations`, async ({ page }) => {
       await page.goto(path)
       if (setup) await setup(page)
+      // Let entrance transitions (framer-motion fades) settle before scanning —
+      // axe reads computed styles mid-transition otherwise, which misreports
+      // transiently low contrast that no real user ever sees.
+      await page.waitForTimeout(600)
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa'])
         .analyze()

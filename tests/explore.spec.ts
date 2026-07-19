@@ -1,5 +1,15 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { waitForExploreLoaded } from './helpers'
+
+/**
+ * The filter bar's dropdowns are custom listbox popovers (`SelectMenu`), not
+ * native `<select>`s — open the trigger by its aria-label, then click the
+ * option row.
+ */
+async function pickFromMenu(page: Page, menuLabel: string, option: string) {
+  await page.getByRole('button', { name: menuLabel, exact: true }).click()
+  await page.getByRole('option', { name: option, exact: true }).click()
+}
 
 test.describe('Explore — search, filter, sort, paging', () => {
   test('loads a grid of cards; the result count appears once a filter is applied', async ({ page }) => {
@@ -10,7 +20,7 @@ test.describe('Explore — search, filter, sort, paging', () => {
     // Unfiltered: no count — "1,000 homes" over the whole catalogue is noise.
     await expect(page.getByText(/homes match your search/)).toHaveCount(0)
 
-    await page.getByRole('combobox').nth(1).selectOption('Bangalore')
+    await pickFromMenu(page, 'City', 'Bangalore')
     await page.waitForTimeout(500)
     await waitForExploreLoaded(page)
     await expect(page.getByText(/homes match your search/)).toBeVisible()
@@ -22,7 +32,7 @@ test.describe('Explore — search, filter, sort, paging', () => {
     await expect(page.locator('article').first()).toBeVisible()
     const before = await page.locator('article').count()
 
-    await page.getByPlaceholder(/Search locality/).fill('Whitefield')
+    await page.getByPlaceholder(/Search society name/).fill('Whitefield')
     await page.waitForTimeout(500)
     await waitForExploreLoaded(page)
 
@@ -35,7 +45,7 @@ test.describe('Explore — search, filter, sort, paging', () => {
   test('a nonsense search yields the empty state, not an error', async ({ page }) => {
     await page.goto('/explore')
     await waitForExploreLoaded(page)
-    await page.getByPlaceholder(/Search locality/).fill('zzzznoexistentqqqxx123')
+    await page.getByPlaceholder(/Search society name/).fill('zzzznoexistentqqqxx123')
     await page.waitForTimeout(500)
     await expect(page.getByText('No homes match those filters')).toBeVisible({ timeout: 10_000 })
   })
@@ -44,8 +54,8 @@ test.describe('Explore — search, filter, sort, paging', () => {
     await page.goto('/explore')
     await waitForExploreLoaded(page)
 
-    await page.getByRole('combobox').nth(0).selectOption('Rent')
-    await page.getByRole('combobox').nth(1).selectOption('Bangalore')
+    await pickFromMenu(page, 'Buy or Rent', 'Rent')
+    await pickFromMenu(page, 'City', 'Bangalore')
     await page.waitForTimeout(500)
     await waitForExploreLoaded(page)
 
@@ -62,7 +72,7 @@ test.describe('Explore — search, filter, sort, paging', () => {
     await waitForExploreLoaded(page)
 
     // Pick exactly 2 and 3 BHK from the multiselect.
-    await page.getByRole('button', { name: 'BHK' }).click()
+    await page.getByRole('button', { name: 'BHK', exact: true }).click()
     await page.getByRole('option', { name: '2 BHK' }).click()
     await page.getByRole('option', { name: '3 BHK' }).click()
     await page.keyboard.press('Escape')
@@ -71,15 +81,19 @@ test.describe('Explore — search, filter, sort, paging', () => {
 
     await expect(page).toHaveURL(/bhk=2(%2C|,)3/)
 
-    // Every rendered card is exactly 2 or 3 BHK — never 1 or 4+ ("2+" would leak 4s).
-    const cards = page.locator('article')
-    const n = await cards.count()
-    expect(n).toBeGreaterThan(0)
-    for (let i = 0; i < n; i++) {
-      const text = (await cards.nth(i).textContent()) ?? ''
-      expect(text).toMatch(/[23] BHK/)
-      expect(text).not.toMatch(/[1456789] BHK/)
-    }
+    // Every rendered card is exactly 2 or 3 BHK — never 1 or 4+ ("2+" would
+    // leak 4s). Polled because the grid keeps the previous (unfiltered) page
+    // on screen while the filtered query loads (`keepPreviousData`).
+    await expect(async () => {
+      const cards = page.locator('article')
+      const n = await cards.count()
+      expect(n).toBeGreaterThan(0)
+      for (let i = 0; i < n; i++) {
+        const text = (await cards.nth(i).textContent()) ?? ''
+        expect(text).toMatch(/[23] BHK/)
+        expect(text).not.toMatch(/[1456789] BHK/)
+      }
+    }).toPass({ timeout: 15_000 })
   })
 
   test('Clear button appears once a filter is active and resets the form', async ({ page }) => {
@@ -87,24 +101,24 @@ test.describe('Explore — search, filter, sort, paging', () => {
     await waitForExploreLoaded(page)
     await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0)
 
-    await page.getByRole('combobox').nth(1).selectOption('Pune')
+    await pickFromMenu(page, 'City', 'Pune')
     await expect(page.getByRole('button', { name: 'Clear' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Clear' }).click()
     await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0)
-    await expect(page.getByRole('combobox').nth(1)).toHaveValue('')
+    await expect(page.getByRole('button', { name: 'City', exact: true })).toHaveText('Any city')
   })
 
   test('filters sync to the URL and survive a refresh', async ({ page }) => {
     await page.goto('/explore')
     await waitForExploreLoaded(page)
-    await page.getByRole('combobox').nth(1).selectOption('Hyderabad')
+    await pickFromMenu(page, 'City', 'Hyderabad')
     await page.waitForTimeout(500)
     await expect(page).toHaveURL(/region=Hyderabad/)
 
     await page.reload()
     await waitForExploreLoaded(page)
-    await expect(page.getByRole('combobox').nth(1)).toHaveValue('Hyderabad')
+    await expect(page.getByRole('button', { name: 'City', exact: true })).toHaveText('Hyderabad')
   })
 
   test('"Load more" appends another page of cards', async ({ page }) => {
