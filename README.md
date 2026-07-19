@@ -110,7 +110,7 @@ across 2,000 listings.
 │  Explore / Detail / Compare / Shortlist                      │
 │        └── TanStack Query ──► api.ts ──────────┐             │
 │                                                │             │
-│  Nestor (reasoning.ts)                         │             │
+│  Nestor (reasoning/)                           │             │
 │    1. isLikelyOutOfScope()  ── local gate ─────┤ (no network)│
 │    2. deriveIntentAsync()  ────────────┐       │             │
 │    3. filter + shortlist top 12 ───────┼───────┤             │
@@ -185,7 +185,7 @@ Anti-hallucination contract, enforced server-side in `sanitize()`:
 - Fit is clamped to 0–100; strengths are capped at 4; empty text fields invalidate the pick.
 - The prompt forbids inventing facts and quoting raw locality scores; prices must be written in Indian units (₹1.2 Cr, ₹85 L, ₹45k/month).
 
-### Deterministic shortlisting & fallback — `src/features/nestor/reasoning.ts`
+### Deterministic shortlisting & fallback — `src/features/nestor/reasoning/`
 
 Candidate selection stays deterministic: hard filters (city, budget, BHK, type,
 exclusions) narrow the catalogue, then a **weighted fit score** over seven locality
@@ -232,8 +232,19 @@ HomeHuntAI/
 │   │   ├── home/
 │   │   │   └── home-page.tsx       # Marketing hero + feature cards
 │   │   ├── nestor/
-│   │   │   ├── nestor-page.tsx     # Chat UI, PickCard, priority editor
-│   │   │   ├── reasoning.ts        # ⭐ Intent + ranking + explanation engine
+│   │   │   ├── nestor-page.tsx     # Chat page shell — layout only
+│   │   │   ├── use-nestor-chat.ts  # Conversation state: turns, live trace, re-ranking, voice
+│   │   │   ├── chat.ts             # ChatMessage model, trace reducer, query length limits
+│   │   │   ├── components/         # pick-card, assistant-message, priority-editor,
+│   │   │   │                       #   tradeoff-simulator, nestor-thinking, composer…
+│   │   │   ├── reasoning/          # ⭐ Intent + ranking + explanation engine
+│   │   │   │   ├── index.ts        #   Public API (runNestor, rerankIntent, types)
+│   │   │   │   ├── dimensions.ts   #   The 7 ranking dimensions, life stages, defaults
+│   │   │   │   ├── intent.ts       #   Brief → NestorIntent (Gemini + regex fallback), scope gate
+│   │   │   │   ├── ranking.ts      #   Hard filters, weighted fit, relaxation, near-misses
+│   │   │   │   ├── narration.ts    #   Deterministic strengths/trade-off/summary text
+│   │   │   │   ├── remote.ts       #   nestor-reason call + candidate payload shaping
+│   │   │   │   └── pipeline.ts     #   Orchestration + live trace streaming
 │   │   │   ├── fit-meter.ts        # Per-pick 0–100 breakdown bars
 │   │   │   ├── trade-off.ts        # "What if" simulator scoring (deterministic, offline)
 │   │   │   ├── use-voice.ts        # Voice-first: SpeechRecognition dictation + SpeechSynthesis read-back
@@ -245,11 +256,14 @@ HomeHuntAI/
 │   │       ├── types.ts            # ⭐ Zod schema — single source of truth
 │   │       ├── comparison.ts       # Deterministic side-by-side scoring
 │   │       ├── filter-params.ts    # Filter ⇄ URL query params
+│   │       ├── filter-form.ts      # Filter bar form model + option catalogues
 │   │       ├── compare-context.tsx     # Compare selection (max 3, localStorage)
 │   │       ├── shortlist-context.tsx   # Shortlist (localStorage)
 │   │       ├── explore-page.tsx / property-detail-page.tsx
 │   │       ├── compare-page.tsx / shortlist-page.tsx
-│   │       ├── components/         # property-card, filter-bar, compare-tray
+│   │       ├── components/         # property-card, filter-bar (+ select-menu,
+│   │       │                       #   bhk-multi-select, listbox), compare-tray,
+│   │       │                       #   property-gallery/-specs/-contact-card, neighborhood-intel
 │   │       └── data/               # listings.json (2,000 seed listings)
 │   ├── lib/
 │   │   ├── supabase.ts             # Supabase browser client
@@ -524,7 +538,9 @@ Not yet implemented:
 
 6. Update this README if your change affects documented behavior.
 
-> One standing lint warning is pre-existing in `src/components/ui/button.tsx`.
+> A few standing lint warnings (`react/only-export-components`, for files that export
+> shared constants or hooks alongside components) are accepted in `src/components/ui/button.tsx`,
+> the compare/shortlist contexts and `src/features/properties/components/listbox.tsx`.
 
 **Never commit** `.env`, the service-role key, or the Gemini key.
 
